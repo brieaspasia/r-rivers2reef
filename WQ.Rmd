@@ -1,0 +1,53 @@
+---
+title: "WQ"
+author: "Brie Sherow"
+date: "13/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load-libraries}
+library(ggplot2) #graphing
+library(ggthemes) #graphing templates
+library(purrr) #looping
+library(lubridate) #date manipulation
+library(forcats) #working with factors
+library(tidyverse) #manipulating data (includes heaps of libraries)
+library(knitr) #rmarkdown functions
+library(tidyr) #long & wide formats
+library(reshape2) #melt function for wide and long formats
+library(rio) #import xlsx with multiple sheets
+```
+# Northern data
+
+## NTU
+
+  1. Data quality checks for missing values and outliers
+  2. Check that thing about high/low means/medians?
+  3. Make plots of NTU
+
+```{r NTU}
+
+#import NTU raw data
+ntu_raw <- import_list("data/NQBP_2019-2020_dailyNTUe_EP notes.xlsx", # all sites (each site is a tab)
+                         setclass = "tbl", # class is tibble, similar to dataframe
+                         rbind = TRUE) # joins all xlsx sheets into one table
+
+#filter for moitoring sites
+ntu_sites <- as.data.frame(ntu_raw) %>% #change from tibble to dataframe
+  filter(Site_code %in% c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5")) %>% #select report card sites
+  mutate(NTUe_mean = as.numeric(NTUe_mean), #change mean and sd from character to numeric
+         NTUe_sd = as.numeric(NTUe_sd))
+  
+
+ggplot(ntu_sites, aes(Date, NTUe_mean)) +
+  geom_line() +
+  facet_wrap(~Site_name, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45))
+```
+
+
