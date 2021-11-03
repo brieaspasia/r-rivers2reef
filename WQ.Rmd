@@ -7,10 +7,15 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+### Reference links
+# R-Markdown: https://bookdown.org/yihui/rmarkdown-cookbook/word-template.html
+
+# GitHub: https://drive.google.com/drive/folders/1HnqhDJRCVebfGyusHI01-LudLfojG9vM
 ```
 
 
-```{r load-libraries}
+```{r load-libraries, message=F, warning=F}
 library(ggplot2) #graphing
 library(ggthemes) #graphing templates
 library(purrr) #looping
@@ -21,33 +26,239 @@ library(knitr) #rmarkdown functions
 library(tidyr) #long & wide formats
 library(reshape2) #melt function for wide and long formats
 library(rio) #import xlsx with multiple sheets
+library(kableExtra) #for displaying nice tables
+library(ggstatsplot) #for finding outliers
 ```
+
 # Northern data
 
-## NTU
+1. Data quality checks for missing values and outliers in excel. Can outliers or missing values be explained by an event or are there mistakes? Flag and comment in excel, go back to data source to check when needed.
 
-  1. Data quality checks for missing values and outliers
-  2. Check that thing about high/low means/medians?
-  3. Make plots of NTU
-
-```{r NTU}
-
-#import NTU raw data
-ntu_raw <- import_list("data/NQBP_2019-2020_dailyNTUe_EP notes.xlsx", # all sites (each site is a tab)
-                         setclass = "tbl", # class is tibble, similar to dataframe
-                         rbind = TRUE) # joins all xlsx sheets into one table
-
-#filter for moitoring sites
-ntu_sites <- as.data.frame(ntu_raw) %>% #change from tibble to dataframe
-  filter(Site_code %in% c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5")) %>% #select report card sites
-  mutate(NTUe_mean = as.numeric(NTUe_mean), #change mean and sd from character to numeric
-         NTUe_sd = as.numeric(NTUe_sd))
-  
-
-ggplot(ntu_sites, aes(Date, NTUe_mean)) +
-  geom_line() +
-  facet_wrap(~Site_name, scales = "free_y") +
-  theme(axis.text.x = element_text(angle = 45))
+```{r site-vectors}
+#create vectors of site codes
+northern <- c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5")
+central<- c("MKY_AMB1", "MKY_AMB2", "MKY_AMB3B", "MKY_AMB5", "MKY_AMB6B", "MKY_AMB8", "MKY_AMB10", "MKY_AMB12", "WHI6", "WHI7")
+NQBP_sites <- c(northern, central)
 ```
 
+    
+## Join nutrients and secchi
 
+```{r import-data, message=F, warning=F}
+  
+# load nutrients and secchi
+WQ_NQBP <- import_list("data/WQ_NQBP_20_nutrients_LORs-changed.xlsx", # all sites (each site is a tab)
+            setclass = "tbl") # class is tibble, similar to dataframe
+      
+      #import NQBP nutrients
+      nutrients <- WQ_NQBP$Nutrients %>%
+        mutate(Code = as.factor(Site_code), #recoding indicators to numeric, factor, and date as needed
+               Name = as.factor(Site_name),
+               PN = as.numeric(PN),
+               Date=ymd(Sample_date),
+               Chla = Chl_a) %>%
+        dplyr::select(Code, Name, Date, TSS, NOx, PN, PP, Chla) #select only relevant indicators
+      
+      
+      #import NQBP secchi
+      secchi <- WQ_NQBP$Physiochem %>%
+        mutate(Code = as.factor(Site_code), #recoding indicators to numeric, factor, and date as needed
+               Name = as.factor(Site_name),
+               Date=ymd(Date),
+               Season = as.factor(Season),
+               Secchi = as.numeric(Secchi)) %>%
+        dplyr::select(Code, Name, Date, Season, Secchi) %>% #select indicators
+        distinct()
+      
+      
+#join secchi to wq 
+# ***check that both have the same number of observations
+      WQN_wide <- nutrients %>% #join to secchi so as not to lose the row of observations that are missing in nutrients
+        full_join(secchi, by = c("Code" = "Code", "Date" = "Date")) %>% #join by two fields
+        mutate(Name = Name.x) %>%
+        dplyr::select(Code, Name, Date, TSS, NOx, PN, PP, Chla, Secchi, Season) %>% #select only relevant indicators
+        filter(Code %in% NQBP_sites) %>%
+        mutate(zone = 
+                 ifelse(Code %in% northern, "Northern", "Central"),
+               supplier = "NQBP") %>%
+        distinct()
+  
+# # data wide to long
+#         # *** need to add column to describe whether the value is mean, median, etc
+# WQ.N <- gather(WQN_wide, Indicator, Value, TSS:Secchi, factor_key=TRUE)
+
+```
+
+    
+## NTU checks
+
+2. Make plots of NTU
+
+```{r NTU-plots, message=F, warning=F}
+
+#import NTU raw data
+ntu_raw <- import_list("data/WQ_NQBP_20_NTUe.xlsx", # all sites (each site is a tab)
+            setclass = "tbl", # class is tibble, similar to dataframe
+            rbind = TRUE) # joins all xlsx sheets into one table
+      
+#filter for moitoring sites
+ntu <- as.data.frame(ntu_raw) %>% #change from tibble to dataframe
+        filter(Site_code %in% NQBP_sites) %>% #select report card sites
+        mutate(NTUe_mean = as.numeric(NTUe_mean), #change mean and sd from character to numeric
+               NTUe_sd = as.numeric(NTUe_sd),
+               zone = ifelse(Site_code %in% northern, "Northern", "Central"),
+               supplier = "NQBP") %>%
+        distinct()
+
+#plot a time series for each site
+ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
+  geom_line() + #line graph
+  facet_wrap(~Site_name, scales = "free_y") + # separate plot for each site, axis range responsive to site
+  theme(axis.text.x = element_text(angle = 45)) #angle axis text for clarity
+```
+
+## WQ checks
+    
+  2. Boxplots, quartile valus, and outlier tables for each indicator
+  
+```{r boxplots-indicators, message=F, warning=F}
+#WQ indicators
+      #create a vector of indicator names
+      indicators <- WQN_wide %>%
+        select_if(is.numeric) %>% # select all columns with numeric data
+        names() %>% #identifies the names of each column
+        set_names() #create a vector out of the column names
+
+
+      #Quartile values output tables
+              QV <- map(indicators, function(x){
+                
+                #create temp dataframe
+                temp_df <- WQN_wide %>%
+                  dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+                  na.omit() #removing NA values
+                
+                #quartile values summary
+                summary <- temp_df %>%
+                  select(x) %>% #this is iterating through the 5 indicators
+                  summary() #quartile values summary of the selected indicator
+                
+                return(summary)
+              })
+              
+              QV %>% #prints table
+                 kable("html") %>%
+                kable_styling(full_width=F) #make the table look nice
+     
+      #oulier output tables
+              indicator_outliers <- map(indicators, function(x){
+                
+                #create temp dataframe
+                temp_df <- WQN_wide %>%
+                dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+                na.omit() #remove NA values
+                
+                #creates vector of outliers
+                outliers <- boxplot.stats(temp_df[[x]])
+              
+                #outlier output table
+                temp_out <- temp_df %>%
+                mutate(Outlier = ifelse(x %in% outliers, "TRUE", "FALSE")) %>% #if value matches outlier vector, assign true, if not assign false
+                select(Date, Code, x, Outlier) #select columns to export
+                
+                return(temp_out)
+        
+                })
+              
+              
+                kable(indicator_outliers, "simple", 
+                      booktabs=T, valign = 't',
+                      align = "lccr") %>%
+                kable_styling() #makes it look nice
+
+
+   #Boxplots by site   
+      boxplots <- map(indicators, #setting the items to iterate, in this case our vector of five indicators
+                      ~ggplot(data = WQN_wide) + #setting the dataframe to use
+                       geom_boxplot(aes(x = Name, y = .data[[.x]]) ) + #site name x, indicator y
+                       labs(y = .x) + #labels the y axis with indicator vector 
+                       theme(axis.text.x = element_text(angle = 45)))
+      
+      boxplots #prints boxplots
+      
+      ### Reference links
+      # https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
+```
+## After final data
+
+1) 
+
+
+```{r boxplots-NTU, message=F, warning=F}      
+# NTU
+  #Summary output tables
+      #remove NA values
+      ntuN <- ntuN[!is.na(ntuN$NTUe_mean), ] #create a dataframe removing all instances where NTU mean is NA
+      
+      #create a vector of outlier values
+      outliers <- boxplot(ntuN$NTUe_mean)$out 
+      
+      #outlier output table
+        ntuN_outliers <- ntuN %>%
+        mutate(Outlier = ifelse(NTUe_mean %in% outliers, "TRUE", "FALSE")) %>%
+        select(Date, Site_code, NTUe_mean, Outlier)
+        
+        kable(ntuN_outliers[1:10, ],"html") %>% #first ten entries (this is a long table)
+          kable_styling(full_width=F) #make the table look nice
+      
+      #quartile values output table
+      ntuN %>%
+        select(NTUe_mean) %>%
+        summary() %>%
+        kable("html") %>% kable_styling(full_width=F) #make the table look nice
+      
+  #boxplots per site
+      #check to see that sample sizes are the same for each site
+      sample_size <- ntuN %>% group_by(Site_name) %>% summarize(num=n()) #number of entries for each site
+      sample_size %>% #print a table that shows the number of entries for each site
+        kable("html", col.names = c("Site", "NTU sample size")) %>% kable_styling(full_width=F) #make the table look nice
+      #***Holbourne Island has the lowest sample size at 189 and Euri Creek is the highest at 234
+      
+      #Boxplots by site
+     ntu_boxplot <-  ntuN %>%
+        left_join(sample_size, by = "Site_name") %>%
+        mutate(site = paste0(Site_name, "\n", "n=", num)) %>% #print sample size next to site name
+      ggplot( aes(x=site, y=NTUe_mean)) + #calling NTU mean as y and site as x
+        # geom_boxplot(varwidth = TRUE) #create boxplot with width determined by sample size
+        geom_violin(width = 1.4, alpha=0.5) + #violin plot more accurately depicts distribution and sample size
+        geom_boxplot(width=0.1) + #depict boxplot inside of the violin plot
+        geom_jitter(color="grey", size=0.7, alpha=0.4) #add all points to visualise distribution and sample size
+
+     ntu_boxplot #prints plot
+      
+      ###Reference links
+      #https://rstudio-pubs-static.s3.amazonaws.com/116317_e6922e81e72e4e3f83995485ce686c14.html#/ (mutate with ifelse statements)
+      #https://www.data-to-viz.com/caveat/boxplot.html
+```
+  
+  
+  3.conversions (MMP only - whitsundays and central)
+    calculate NOX, convert units for NOX, PN, PP
+    
+  4. LOR/LOD check (mainly SIP) 
+    transform values too low for detection, check limits and calculations (LOR * 0.5)
+  
+
+## Indicator tables
+
+5) use sites and guidelines table to get annual mean or median for each site
+
+6) calc unstandardised indicator score - if the log of GV value mean or median / real value is less than 1, =1, or 2 - basically calculating whether its higher or lower than guideline value
+
+7) Avg of indicators to form indicator category (need to have 60% of indicators to grade)
+
+8) Indicator zone level (avg of sties)
+
+9) standardised score (join indicator zone level score to WQ index to determine Condition and resulting equation to calc GBR range)
+
+10) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
