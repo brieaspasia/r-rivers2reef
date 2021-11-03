@@ -1,0 +1,116 @@
+---
+title: "Pesticides"
+author: "Brie Sherow"
+date: "04/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-libraries, message=F, warning=F}
+library(ggplot2) #graphing
+library(ggthemes) #graphing templates
+library(purrr) #looping
+library(lubridate) #date manipulation
+library(forcats) #working with factors
+library(tidyverse) #manipulating data (includes heaps of libraries)
+library(knitr) #rmarkdown functions
+library(tidyr) #long & wide formats
+library(janitor) #rows to columns
+library(readxl) #load excel sheets
+library(openxlsx) #fixing excel date formats
+```
+
+```{r}
+# load data
+
+      #MMP
+      Pest_MMP <- read_excel("data/Pesticides_combined_21.xlsx",
+                             sheet = "MMP")
+      
+      Pest_MMP <- as.data.frame(t(Pest_MMP))
+      
+      
+      Pest_MMP <- Pest_MMP %>%
+        row_to_names(row_number = 1) %>%
+        rename(Deployment = 'Deployment Date',
+               Retrieval = 'Retrieval Date') %>%
+        mutate(Deployment = as.numeric(Deployment),
+               Retrieval = as.numeric(Retrieval)) %>%
+        mutate(Deployment_date = convertToDate(Deployment),
+               Retrieval_date = convertToDate(Retrieval)) %>%
+        dplyr::select(-Retrieval, -Deployment) %>%
+        mutate(Program = "MMP")
+      
+      Pest_MMP <- Pest_MMP[, c(1, 30, 31, 2:29, 32)]
+      
+      #NQBP
+      Pest_NQBP <- read_excel("data/Pesticides_combined_21.xlsx",
+                             sheet = "NQBP")
+      
+      Pest_NQBP <- as.data.frame(t(Pest_NQBP))
+      
+      
+      Pest_NQBP <- Pest_NQBP %>%
+        row_to_names(row_number = 1) %>%
+        rename(Deployment = 'Deployment Date',
+               Retrieval = 'Retrieval Date') %>%
+        mutate(Deployment = as.numeric(Deployment),
+               Retrieval = as.numeric(Retrieval)) %>%
+        mutate(Deployment_date = convertToDate(Deployment),
+               Retrieval_date = convertToDate(Retrieval)) %>%
+        dplyr::select(-Retrieval, -Deployment) %>%
+        mutate(Program = "NQBP")
+      
+      Pest_NQBP <- Pest_NQBP[, c(1, 30, 31, 2:29, 32)]
+      
+      #SIP
+      Pest_SIP <- read_excel("data/Pesticides_combined_21.xlsx",
+                             sheet = "SIP")
+      
+      Pest_SIP <- as.data.frame(t(Pest_SIP))
+      
+      
+      Pest_SIP <- Pest_SIP %>%
+        row_to_names(row_number = 1) %>%
+        rename(Deployment = 'Deployment Date',
+               Retrieval = 'Retrieval Date') %>%
+        mutate(Deployment = as.numeric(Deployment),
+               Retrieval = as.numeric(Retrieval)) %>%
+        mutate(Deployment_date = convertToDate(Deployment),
+               Retrieval_date = convertToDate(Retrieval)) %>%
+        dplyr::select(-Retrieval, -Deployment) %>%
+        mutate(Program = "SIP")
+      
+      Pest_SIP <- Pest_SIP[, c(1, 29, 30, 2:28, 31)]
+
+```
+
+```{r compare-and-merge}
+Pest_all <- plyr::rbind.fill(Pest_MMP, Pest_NQBP, Pest_SIP)
+
+#alphabetical order
+Pest_all <- Pest_all[,order(colnames(Pest_all))]
+
+#reorder columns so that sample info is first (there is def. a better way to do this)
+Pest_all <- Pest_all[, c(35, 33, 10, 32, 8, 15, 1:7, 9, 11:14, 16:27, 29:31, 34, 36:41, 28)]
+
+#load site data
+sites <- read_excel("data/WQ_Variables.xlsx",
+                             sheet = "sites")
+
+#join site data
+Pest_all <- Pest_all %>%
+  left_join(sites, by = c("Site Name" = "Name")) %>%
+  mutate(SampleType = "Water",
+         SampleSource = "Marine",
+         QAType = "Primary")
+
+#reorder columns so that sample info is first (there is def. a better way to do this)
+Pest_all <- Pest_all[, c(1:2, 41:47, 3:40)]
+
+write.csv(Pest_all, "data/Pesticides_HR2RP_20-21.csv")
+```
+
