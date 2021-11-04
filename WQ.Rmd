@@ -247,18 +247,22 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
     
   4. LOR/LOD check (mainly SIP) 
     transform values too low for detection, check limits and calculations (LOR * 0.5)
-  
+
+## Output tables
+1) Raw data (Code, Name, Date, each indicator its own column, LOR and outliers highlighted)
+2) Final data (same as raw but with outliers and LOR corrected)
+3) Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
 
 ## Indicator tables
 
-5) use sites and guidelines table to get annual mean or median for each site
+1) use stats table to get annual mean or median for each site
 
-6) calc unstandardised indicator score - if the log of GV value mean or median / real value is less than 1, =1, or 2 - basically calculating whether its higher or lower than guideline value
+2) calc unstandardised indicator score - if the log of GV value mean or median / real value is less than 1, =1, or 2 - basically calculating whether its higher or lower than guideline value
 
-7) Avg of indicators to form indicator category (need to have 60% of indicators to grade)
+3) Avg of indicators to form indicator category (need to have 60% of indicators to grade)
 
-8) Indicator zone level (avg of sties)
+4) Indicator zone level (avg of sties)
 
-9) standardised score (join indicator zone level score to WQ index to determine Condition and resulting equation to calc GBR range)
+5) standardised score (join indicator zone level score to WQ index to determine Condition and resulting equation to calc GBR range)
 
-10) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
+6) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
