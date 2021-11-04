@@ -28,12 +28,39 @@ library(reshape2) #melt function for wide and long formats
 library(rio) #import xlsx with multiple sheets
 library(kableExtra) #for displaying nice tables
 library(ggstatsplot) #for finding outliers
+library(DT) #excel-like searchable data tables
+```
+1. Data quality checks for missing values, LORs, and outliers in excel. Can outliers or missing values be explained by an event or are there mistakes? Flag and comment in excel, go back to data source to check when needed. LOR/LOD check (mainly SIP) transform values too low for detection, check limits and calculations (LOR * 0.5). Import this corrected raw data into R.
+
+# WQ Index
+```{r}
+# load WQ index
+WQ_index <- import_list("data/WQ_Variables.xlsx", # GV, LOR, sites
+            setclass = "tbl") # class is tibble, similar to dataframe
+
+#site info
+sites <- as.data.frame(WQ_index$sites)
+
+# #lower limits of reporting for each partner
+# LOR <- as.data.frame(WQ_index$'WQ-LOR')
+# # LOR wide to long
+#         # *** need to add column to describe whether the value is mean, median, etc
+# LOR_long <- gather(LOR, Indicator, Value, PN:Turbidity, factor_key=TRUE)
+
+# guideline values for failures
+GV <- as.data.frame(WQ_index$'WQ-GV')
+
 ```
 
-# Northern data
+2. Raw data in excel (Code, Name, Date, each indicator its own column, LOR and outliers highlighted). 
 
-1. Data quality checks for missing values and outliers in excel. Can outliers or missing values be explained by an event or are there mistakes? Flag and comment in excel, go back to data source to check when needed.
+2) Final data (same as raw but with outliers and LOR corrected). Import this final data into R.
 
+*** Head should look like this: ACTION to put a jpeg of data head***
+
+# Northern ====================================
+
+## NQBP data
 ```{r site-vectors}
 #create vectors of site codes
 northern <- c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5")
@@ -175,6 +202,8 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
                       booktabs=T, valign = 't',
                       align = "lccr") %>%
                 kable_styling() #makes it look nice
+                
+                datatable(data=indicator_outliers$PP)
 
 
    #Boxplots by site   
@@ -190,8 +219,6 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
       # https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
 ```
 ## After final data
-
-1) 
 
 
 ```{r boxplots-NTU, message=F, warning=F}      
@@ -240,17 +267,9 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
       #https://rstudio-pubs-static.s3.amazonaws.com/116317_e6922e81e72e4e3f83995485ce686c14.html#/ (mutate with ifelse statements)
       #https://www.data-to-viz.com/caveat/boxplot.html
 ```
-  
-  
-  3.conversions (MMP only - whitsundays and central)
-    calculate NOX, convert units for NOX, PN, PP
-    
-  4. LOR/LOD check (mainly SIP) 
-    transform values too low for detection, check limits and calculations (LOR * 0.5)
 
 ## Output tables
-1) Raw data (Code, Name, Date, each indicator its own column, LOR and outliers highlighted)
-2) Final data (same as raw but with outliers and LOR corrected)
+
 3) Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
 
 ## Indicator tables
@@ -266,3 +285,18 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
 5) standardised score (join indicator zone level score to WQ index to determine Condition and resulting equation to calc GBR range)
 
 6) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
+
+# Whitsundays
+MMP and BP data
+
+  1. MMP conversions
+    calculate NOX, convert units for NOX, PN, PP
+
+# Central
+MMP and NQBP data
+
+  1.MMP conversions
+    calculate NOX, convert units for NOX, PN, PP
+
+# Southern
+SIP data
