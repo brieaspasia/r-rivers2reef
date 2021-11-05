@@ -61,11 +61,12 @@ GV <- as.data.frame(WQ_index$'WQ-GV')
 # Northern ====================================
 
 ## NQBP data
-```{r site-vectors}
+```{r NQBP-site-vectors}
 #create vectors of site codes
 northern <- c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5")
 central<- c("MKY_AMB1", "MKY_AMB2", "MKY_AMB3B", "MKY_AMB5", "MKY_AMB6B", "MKY_AMB8", "MKY_AMB10", "MKY_AMB12", "WHI6", "WHI7")
-NQBP_sites <- c(northern, central)
+#note that all central sites are included in this vector, not jsut NQBP
+NQBP_sites <- c(northern, "MKY_AMB1", "MKY_AMB2", "MKY_AMB3B", "MKY_AMB5", "MKY_AMB6B", "MKY_AMB8", "MKY_AMB10", "MKY_AMB12")
 ```
 
     
@@ -286,17 +287,71 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
 
 6) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
 
-# Whitsundays
+# Whitsundays=======================
 MMP and BP data
+```{r MMP-site-vectors}
+#create vectors of site codes
+whit <- c("WHI1", "WHI4", "WHI5")
+central <- c("MKY_AMB1", "MKY_AMB2", "MKY_AMB3B", "MKY_AMB5", "MKY_AMB6B", "MKY_AMB8", "MKY_AMB10", "MKY_AMB12", "WHI6", "WHI7")
+mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
+```
+
 
   1. MMP conversions
     calculate NOX, convert units for NOX, PN, PP
+```{r import-data, message=F, warning=F}
+# load and set up MMP data  
+      # load MMP nutrients
+      nutrients_mmp <- read.csv("data/21_WQ_MMP_nutrients.csv") 
+            
+      #remove unnecessary columns and classify type
+      nutrients_mmp <- nutrients_mmp %>%
+        mutate(Code = as.factor(SHORT_NAME),
+               Name = as.factor(LOCATION_NAME),
+               Date = dmy(Date),
+               Depth = as.factor(DEPTH_CODE)) %>%
+        select(Depth, Code, Date, Name, Secchi_depth_m, 
+               NO2_uM, NO3_uM, PN_SHIM_uM, PP_uM, 
+               TSS_mg.l, Chl_ug.l) 
+      
+      #conversions
+      nutrients_mmp <- nutrients_mmp %>%
+        mutate(NOx_uM = NO2_uM + NO3_uM,
+               NOx_ug.l = NOx_uM*14,
+               PN_ug.l = PN_SHIM_uM*14,
+               PP_ug.l = PP_uM*30.97) %>%
+        select(Depth:Secchi_depth_m, TSS_mg.l, 
+               Chl_ug.l, NOx_ug.l, PN_ug.l, PP_ug.l)
+      
+# Comparisons between surface and depth samples   
+        # create wide df to calc across depths
+      mmp_nut_wide <- nutrients_mmp %>%
+        pivot_wider(names_from = Depth, 
+                    values_from = TSS_mg.l:PP_ug.l) %>%
+        mutate(TSS_avg = 
+                 rowMeans(select(.,TSS_mg.l_D0: TSS_mg.l_D1)),
+               Chl_avg = 
+                 rowMeans(select(.,Chl_ug.l_D0: Chl_ug.l_D1)),
+               NOx_avg =
+                 rowMeans(select(.,NOx_ug.l_D0: NOx_ug.l_D1)),
+               PN_avg =
+                 rowMeans(select(.,PN_ug.l_D0: PN_ug.l_D1)),
+               PP_avg =
+                 rowMeans(select(.,PP_ug.l_D0: PP_ug.l_D1))) %>%
+        select(Code, Date, TSS_avg:PP_avg)
+      
 
-# Central
+      
+nutrients_mmp <- nutrients_mmp %>%
+  filter(Depth == "D0") %>%
+  left_join(mmp_nut_wide, by = c("Code", "Date"))
+
+```
+# Central=======================
 MMP and NQBP data
 
   1.MMP conversions
     calculate NOX, convert units for NOX, PN, PP
 
-# Southern
+# Southern=======================
 SIP data
