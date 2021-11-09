@@ -346,6 +346,164 @@ nutrients_mmp <- nutrients_mmp %>%
   filter(Depth == "D0") %>%
   left_join(mmp_nut_wide, by = c("Code", "Date"))
 
+#create df for weighted avg results to compare to surface layers
+nutrients_mmp_avg <- nutrients_mmp %>%
+  select(Code:Secchi_depth_m, TSS_avg:PP_avg)
+
+#create df for surface data only
+nutrients_mmp <- nutrients_mmp %>%
+  select(Code:PP_ug.l) %>%
+  rename(Secchi = Secchi_depth_m,
+         TSS = TSS_mg.l,
+         Chla = Chl_ug.l,
+         NOx = NOx_ug.l,
+         PN = PN_ug.l,
+         PP = PP_ug.l) %>%
+  mutate(zone = ifelse(Code %in% whit, "whitsundays", "central"))
+
+```
+
+```{r mmp-boxplots}
+#WQ indicators
+      #create a vector of indicator names
+      indicators <- nutrients_mmp %>%
+        select_if(is.numeric) %>% # select all columns with numeric data
+        names() %>% #identifies the names of each column
+        set_names() #create a vector out of the column names
+
+ #Quartile values output tables
+              QV <- map(indicators, function(x){
+                
+                #create temp dataframe
+                temp_df <- nutrients_mmp %>%
+                  dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+                  na.omit() #removing NA values
+                
+                #quartile values summary
+                summary <- temp_df %>%
+                  select(x) %>% #this is iterating through the 5 indicators
+                  summary() #quartile values summary of the selected indicator
+                
+                return(summary)
+              })
+              
+              QV %>% #prints table
+                 kable("html") %>%
+                kable_styling(full_width=F) #make the table look nice
+     
+      #oulier output tables
+              indicator_outliers <- map(indicators, function(x){
+                
+                #create temp dataframe
+                temp_df <- nutrients_mmp %>%
+                dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+                na.omit() #remove NA values
+                
+                #creates vector of outliers
+                outliers <- boxplot.stats(temp_df[[x]])
+              
+                #outlier output table
+                temp_out <- temp_df %>%
+                mutate(Outlier = ifelse(x %in% outliers, "TRUE", "FALSE")) %>% #if value matches outlier vector, assign true, if not assign false
+                select(Date, Code, x, Outlier) #select columns to export
+                
+                return(temp_out)
+        
+                })
+              
+              
+                kable(indicator_outliers, "simple", 
+                      booktabs=T, valign = 't',
+                      align = "lccr") %>%
+                kable_styling() #makes it look nice
+                
+                datatable(data=indicator_outliers$PP)
+
+
+   #Boxplots by site   
+      boxplots <- map(indicators, #setting the items to iterate, in this case our vector of five indicators
+                      ~ggplot(data = nutrients_mmp) + #setting the dataframe to use
+                       geom_boxplot(aes(x = Code, y = .data[[.x]]) ) + #site name x, indicator y
+                       labs(y = .x) + #labels the y axis with indicator vector 
+                       theme(axis.text.x = element_text(angle = 45)))
+      
+      boxplots #prints boxplots
+      
+      ### Reference links
+      # https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
+  
+```
+
+
+```{r boxplots-indicators, message=F, warning=F}
+#WQ indicators
+      #create a vector of indicator names
+      indicators <- WQN_wide %>%
+        select_if(is.numeric) %>% # select all columns with numeric data
+        names() %>% #identifies the names of each column
+        set_names() #create a vector out of the column names
+
+
+      #Quartile values output tables
+              QV <- map(indicators, function(x){
+                
+                #create temp dataframe
+                temp_df <- WQN_wide %>%
+                  dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+                  na.omit() #removing NA values
+                
+                #quartile values summary
+                summary <- temp_df %>%
+                  select(x) %>% #this is iterating through the 5 indicators
+                  summary() #quartile values summary of the selected indicator
+                
+                return(summary)
+              })
+              
+              QV %>% #prints table
+                 kable("html") %>%
+                kable_styling(full_width=F) #make the table look nice
+     
+      #oulier output tables
+              indicator_outliers <- map(indicators, function(x){
+                
+                #create temp dataframe
+                temp_df <- WQN_wide %>%
+                dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+                na.omit() #remove NA values
+                
+                #creates vector of outliers
+                outliers <- boxplot.stats(temp_df[[x]])
+              
+                #outlier output table
+                temp_out <- temp_df %>%
+                mutate(Outlier = ifelse(x %in% outliers, "TRUE", "FALSE")) %>% #if value matches outlier vector, assign true, if not assign false
+                select(Date, Code, x, Outlier) #select columns to export
+                
+                return(temp_out)
+        
+                })
+              
+              
+                kable(indicator_outliers, "simple", 
+                      booktabs=T, valign = 't',
+                      align = "lccr") %>%
+                kable_styling() #makes it look nice
+                
+                datatable(data=indicator_outliers$PP)
+
+
+   #Boxplots by site   
+      boxplots <- map(indicators, #setting the items to iterate, in this case our vector of five indicators
+                      ~ggplot(data = WQN_wide) + #setting the dataframe to use
+                       geom_boxplot(aes(x = Name, y = .data[[.x]]) ) + #site name x, indicator y
+                       labs(y = .x) + #labels the y axis with indicator vector 
+                       theme(axis.text.x = element_text(angle = 45)))
+      
+      boxplots #prints boxplots
+      
+      ### Reference links
+      # https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
 ```
 # Central=======================
 MMP and NQBP data
