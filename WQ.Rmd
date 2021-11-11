@@ -21,7 +21,7 @@ library(ggthemes) #graphing templates
 library(purrr) #looping
 library(lubridate) #date manipulation
 library(forcats) #working with factors
-library(tidyverse) #manipulating data (includes heaps of libraries)
+library(tidyverse) #manipulating data 
 library(knitr) #rmarkdown functions
 library(tidyr) #long & wide formats
 library(reshape2) #melt function for wide and long formats
@@ -29,11 +29,14 @@ library(rio) #import xlsx with multiple sheets
 library(kableExtra) #for displaying nice tables
 library(ggstatsplot) #for finding outliers
 library(DT) #excel-like searchable data tables
+library(gridExtra) #grid prints for ggplot
+library(psych) #describe function for summary table
+
 ```
 1. Data quality checks for missing values, LORs, and outliers in excel. Can outliers or missing values be explained by an event or are there mistakes? Flag and comment in excel, go back to data source to check when needed. LOR/LOD check (mainly SIP) transform values too low for detection, check limits and calculations (LOR * 0.5). Import this corrected raw data into R.
 
 # WQ Index
-```{r}
+```{r wq-index}
 # load WQ index
 WQ_index <- import_list("data/WQ_Variables.xlsx", # GV, LOR, sites
             setclass = "tbl") # class is tibble, similar to dataframe
@@ -48,7 +51,13 @@ sites <- as.data.frame(WQ_index$sites)
 # LOR_long <- gather(LOR, Indicator, Value, PN:Turbidity, factor_key=TRUE)
 
 # guideline values for failures
-GV <- as.data.frame(WQ_index$'WQ-GV')
+GV <- as.data.frame(WQ_index$GV_long) %>%
+  mutate(Code = as.factor(Code),
+         Name = as.factor(Name),
+         Indicator = as.factor(Indicator),
+         Value = as.numeric(Value),
+         Stat = as.factor(Stat),
+         Failure = as.factor(Failure))
 
 ```
 
@@ -348,7 +357,10 @@ nutrients_mmp <- nutrients_mmp %>%
 
 #create df for weighted avg results to compare to surface layers
 nutrients_mmp_avg <- nutrients_mmp %>%
-  select(Code:Secchi_depth_m, TSS_avg:PP_avg)
+  select(Code:Secchi_depth_m, TSS_avg:PP_avg) %>%
+  mutate(zone = ifelse(Code %in% whit, "Whitsundays", "Central"),
+         supplier = "MMP",
+         Season = NA)
 
 #create df for surface data only
 nutrients_mmp <- nutrients_mmp %>%
@@ -433,24 +445,157 @@ nutrients_whit <- nutrients_mmp %>%
                        labs(y = .x) + #labels the y axis with indicator vector 
                        theme(axis.text.x = element_text(angle = 45)))
       
-      boxplots #prints boxplots
+      
+      
+      plots_surface <- ggarrange(boxplots$Secchi, boxplots$TSS, boxplots$Chla, boxplots$NOx, boxplots$PN, boxplots$PP + rremove("x.text"), 
+          labels = c("A", "B", "C", "D", "E"),
+          ncol = 2, nrow = 3)
+      
+      plots_surface #prints boxplots
+      
+svg("images/boxplots_surface.svg", height=7, width=12)
+plot(plots_surface)
+dev.off()
       
       ### Reference links
       # https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
-      
-
   
 ```
 
-```{r whit-stats-tables}
+```{r whit-scores}
+#*** Still need to figure out nObsv col and direction of failure
+# 3) Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
 
-## 3) Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
+#data wide to long
+t <- nutrients_whit %>%
+  gather(Indicator, Value, Secchi:PP) %>%
+  select(-Date, -zone, -supplier, -Season) %>%
+  # unite("Site", Code:Name, sep = " ") %>%
+  group_by(Name, Indicator) %>%
+  mutate(Mean = mean(Value),
+         Minimum = min(Value),
+         '25th' = quantile(Value, probs = .25),
+         Median = median(Value),
+         '75th' = quantile(Value, probs = .75),
+         Maximum = max(Value)) %>%
+  select(-Value) %>%
+  distinct()
+
+# i <- GV %>%
+#   filter(Code %in% whit) %>%
+#   rename(Chla = 'Chl-a',
+#          Turbidity = 'Turbidity_annual') %>%
+#   gather(Indicator, GV, NOx:Turbidity) %>%
+#     select(Code, Name, Indicator, GV) %>%
+#   mutate(Stat = ifelse(Indicator == "Secchi", "mean", "median"),
+#          Failure = ifelse(Indicator == "Secchi", "Low", "High"))
+
+data_stats_whit <- t %>%
+  left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator"))
+
+
+
+
+
 ```
+1) use stats table to get annual mean or median for each site
+
+2) calc unstandardised indicator score - if the log of GV value mean or median / real value is less than 1, =1, or 2 - basically calculating whether its higher or lower than guideline value
+
+3) Avg of indicators to form indicator category (need to have 60% of indicators to grade)
+
+4) Indicator zone level (avg of sties)
+
+5) standardised score (join indicator zone level score to WQ index to determine Condition and resulting equation to calc GBR range)
+
+6) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
+```{r mmp-boxplots-whit-weightedAVG}
+# #create whitsunday df
+# nutrients_whit <- nutrients_mmp_avg %>%
+#   filter(Code %in% whit)
+# 
+# #WQ indicators
+#       #create a vector of indicator names
+#       indicators <- nutrients_whit %>%
+#         select_if(is.numeric) %>% # select all columns with numeric data
+#         names() %>% #identifies the names of each column
+#         set_names() #create a vector out of the column names
+# 
+#  #Quartile values output tables
+#               QV <- map(indicators, function(x){
+#                 
+#                 #create temp dataframe
+#                 temp_df <- nutrients_whit %>%
+#                   dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+#                   na.omit() #removing NA values
+#                 
+#                 #quartile values summary
+#                 summary <- temp_df %>%
+#                   select(x) %>% #this is iterating through the 5 indicators
+#                   summary() #quartile values summary of the selected indicator
+#                 
+#                 return(summary)
+#               })
+#               
+#               QV %>% #prints table
+#                  kable("html") %>%
+#                 kable_styling(full_width=F) #make the table look nice
+#      
+#       #oulier output tables
+#               indicator_outliers <- map(indicators, function(x){
+#                 
+#                 #create temp dataframe
+#                 temp_df <- nutrients_whit %>%
+#                 dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
+#                 na.omit() #remove NA values
+#                 
+#                 #creates vector of outliers
+#                 outliers <- boxplot.stats(temp_df[[x]])
+#               
+#                 #outlier output table
+#                 temp_out <- temp_df %>%
+#                 mutate(Outlier = ifelse(x %in% outliers, "TRUE", "FALSE")) %>% #if value matches outlier vector, assign true, if not assign false
+#                 select(Date, Code, x, Outlier) #select columns to export
+#                 
+#                 return(temp_out)
+#         
+#                 })
+#               
+#               
+#                 kable(indicator_outliers, "simple", 
+#                       booktabs=T, valign = 't',
+#                       align = "lccr") %>%
+#                 kable_styling() #makes it look nice
+#                 
+#                 datatable(data=indicator_outliers$PP)
+# 
+# 
+#    #Boxplots by site   
+#       boxplots <- map(indicators, #setting the items to iterate, in this case our vector of five indicators
+#                       ~ggplot(data = nutrients_whit) + #setting the dataframe to use
+#                        geom_boxplot(aes(x = Name, y = .data[[.x]]) ) + #site name x, indicator y
+#                        labs(y = .x) + #labels the y axis with indicator vector 
+#                        theme(axis.text.x = element_text(angle = 45)))
+#       
+#       boxplots #prints boxplots
+#       
+#             plots_weightedAVG <- ggarrange(boxplots$Secchi_depth_m, boxplots$TSS_avg, boxplots$Chl_avg, boxplots$NOx_avg, boxplots$PN_avg, boxplots$PP_avg + rremove("x.text"), 
+#           labels = c("A", "B", "C", "D", "E"),
+#           ncol = 2, nrow = 3)
+#       
+# svg("images/boxplots_weightedAVG.svg", height=7, width=12)
+# plot(plots_weightedAVG)
+# dev.off()
+#       
+#       ### Reference links
+#       # https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
+#   
+
 
 # Central=======================
 MMP and NQBP data
 
-```{r central boxplots}
+```{r central-boxplots}
 col_order <- c("Code", "Name", "Date", "TSS", "NOx", "PN", "PP", "Chla", "Secchi", "Season","zone","supplier")
 
 nutrients_mmp <- nutrients_mmp[,col_order]
