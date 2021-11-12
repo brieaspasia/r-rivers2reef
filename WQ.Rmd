@@ -29,8 +29,7 @@ library(rio) #import xlsx with multiple sheets
 library(kableExtra) #for displaying nice tables
 library(ggstatsplot) #for finding outliers
 library(DT) #excel-like searchable data tables
-library(gridExtra) #grid prints for ggplot
-library(psych) #describe function for summary table
+library(ggpubr) #grid prints for ggplot
 
 ```
 1. Data quality checks for missing values, LORs, and outliers in excel. Can outliers or missing values be explained by an event or are there mistakes? Flag and comment in excel, go back to data source to check when needed. LOR/LOD check (mainly SIP) transform values too low for detection, check limits and calculations (LOR * 0.5). Import this corrected raw data into R.
@@ -120,9 +119,9 @@ WQ_NQBP <- import_list("data/WQ_NQBP_20_nutrients_LORs-changed.xlsx", # all site
                supplier = "NQBP") %>%
         distinct()
   
-# # data wide to long
-#         # *** need to add column to describe whether the value is mean, median, etc
-# WQ.N <- gather(WQN_wide, Indicator, Value, TSS:Secchi, factor_key=TRUE)
+# data wide to long
+        # *** need to add column to describe whether the value is mean, median, etc
+WQ.N <- gather(WQN_wide, Indicator, Value, TSS:Secchi, factor_key=TRUE)
 
 ```
 
@@ -156,7 +155,7 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
 
 ## WQ checks
     
-  2. Boxplots, quartile valus, and outlier tables for each indicator
+  2. Boxplots, quartile values, and outlier tables for each indicator
   
 ```{r boxplots-indicators, message=F, warning=F}
 #WQ indicators
@@ -166,27 +165,10 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
         names() %>% #identifies the names of each column
         set_names() #create a vector out of the column names
 
+### do a trial of case_when statements for outliers
+#https://towardsdatascience.com/tired-of-nested-ifelse-in-dplyr-look-no-further-ebf7166b5289
 
-      #Quartile values output tables
-              QV <- map(indicators, function(x){
-                
-                #create temp dataframe
-                temp_df <- WQN_wide %>%
-                  dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
-                  na.omit() #removing NA values
-                
-                #quartile values summary
-                summary <- temp_df %>%
-                  select(x) %>% #this is iterating through the 5 indicators
-                  summary() #quartile values summary of the selected indicator
-                
-                return(summary)
-              })
-              
-              QV %>% #prints table
-                 kable("html") %>%
-                kable_styling(full_width=F) #make the table look nice
-     
+              WQN_wide
       #oulier output tables
               indicator_outliers <- map(indicators, function(x){
                 
@@ -388,27 +370,7 @@ nutrients_whit <- nutrients_mmp %>%
         select_if(is.numeric) %>% # select all columns with numeric data
         names() %>% #identifies the names of each column
         set_names() #create a vector out of the column names
-
- #Quartile values output tables
-              QV <- map(indicators, function(x){
-                
-                #create temp dataframe
-                temp_df <- nutrients_whit %>%
-                  dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
-                  na.omit() #removing NA values
-                
-                #quartile values summary
-                summary <- temp_df %>%
-                  select(x) %>% #this is iterating through the 5 indicators
-                  summary() #quartile values summary of the selected indicator
-                
-                return(summary)
-              })
-              
-              QV %>% #prints table
-                 kable("html") %>%
-                kable_styling(full_width=F) #make the table look nice
-     
+      
       #oulier output tables
               indicator_outliers <- map(indicators, function(x){
                 
@@ -463,37 +425,35 @@ dev.off()
 ```
 
 ```{r whit-scores}
-#*** Still need to figure out nObsv col and direction of failure
-# 3) Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
 
-#data wide to long
-t <- nutrients_whit %>%
-  gather(Indicator, Value, Secchi:PP) %>%
-  select(-Date, -zone, -supplier, -Season) %>%
-  # unite("Site", Code:Name, sep = " ") %>%
-  group_by(Name, Indicator) %>%
-  mutate(Mean = mean(Value),
-         Minimum = min(Value),
-         '25th' = quantile(Value, probs = .25),
-         Median = median(Value),
-         '75th' = quantile(Value, probs = .75),
-         Maximum = max(Value)) %>%
-  select(-Value) %>%
-  distinct()
+      # Create stats table 
+      #Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
+      
+      #data wide to long
+      nutrients_whit_long <- nutrients_whit %>%
+        gather(Indicator, Value, Secchi:PP) %>%
+        select(-Date, -zone, -supplier, -Season) %>%
+        # unite("Site", Code:Name, sep = " ") %>%
+        group_by(Name, Indicator) %>%
+        mutate(Mean = mean(Value),
+               Minimum = min(Value),
+               '25th' = quantile(Value, probs = .25),
+               Median = median(Value),
+               '75th' = quantile(Value, probs = .75),
+               Maximum = max(Value)) %>%
+        select(-Value) %>%
+        distinct()
+      
+      data_stats_whit <- nutrients_whit_long %>%
+        left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator"))
 
-# i <- GV %>%
-#   filter(Code %in% whit) %>%
-#   rename(Chla = 'Chl-a',
-#          Turbidity = 'Turbidity_annual') %>%
-#   gather(Indicator, GV, NOx:Turbidity) %>%
-#     select(Code, Name, Indicator, GV) %>%
-#   mutate(Stat = ifelse(Indicator == "Secchi", "mean", "median"),
-#          Failure = ifelse(Indicator == "Secchi", "Low", "High"))
-
-data_stats_whit <- t %>%
-  left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator"))
-
-
+nutrients_whit_scores <- nutrients_whit %>%
+        gather(Indicator, Value, Secchi:PP) %>%
+        select(-Date, -zone, -supplier, -Season) %>%
+        group_by(Name, Indicator) %>%
+        left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator")) %>%
+  group_by(Code, Indicator) %>%
+  mutate(data_value = )
 
 
 
@@ -521,26 +481,6 @@ data_stats_whit <- t %>%
 #         names() %>% #identifies the names of each column
 #         set_names() #create a vector out of the column names
 # 
-#  #Quartile values output tables
-#               QV <- map(indicators, function(x){
-#                 
-#                 #create temp dataframe
-#                 temp_df <- nutrients_whit %>%
-#                   dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
-#                   na.omit() #removing NA values
-#                 
-#                 #quartile values summary
-#                 summary <- temp_df %>%
-#                   select(x) %>% #this is iterating through the 5 indicators
-#                   summary() #quartile values summary of the selected indicator
-#                 
-#                 return(summary)
-#               })
-#               
-#               QV %>% #prints table
-#                  kable("html") %>%
-#                 kable_styling(full_width=F) #make the table look nice
-#      
 #       #oulier output tables
 #               indicator_outliers <- map(indicators, function(x){
 #                 
@@ -590,7 +530,7 @@ data_stats_whit <- t %>%
 #       ### Reference links
 #       # https://stackoverflow.com/questions/58204452/printing-ggplot-with-purrr-map
 #   
-
+```
 
 # Central=======================
 MMP and NQBP data
@@ -612,25 +552,6 @@ nutrients_central <- WQN_wide %>%
         names() %>% #identifies the names of each column
         set_names() #create a vector out of the column names
 
- #Quartile values output tables
-              QV <- map(indicators, function(x){
-                
-                #create temp dataframe
-                temp_df <- nutrients_central %>%
-                  dplyr::select(Code, Name, Date, paste0(x), zone) %>% #the paste0(x) is iterating through the indicators vector
-                  na.omit() #removing NA values
-                
-                #quartile values summary
-                summary <- temp_df %>%
-                  select(x) %>% #this is iterating through the 5 indicators
-                  summary() #quartile values summary of the selected indicator
-                
-                return(summary)
-              })
-              
-              QV %>% #prints table
-                 kable("html") %>%
-                kable_styling(full_width=F) #make the table look nice
      
       #oulier output tables
               indicator_outliers <- map(indicators, function(x){
