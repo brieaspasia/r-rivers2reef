@@ -1,0 +1,148 @@
+Code,Name,Indicator,Value,Stat,Failure
+AP_AMB1,Euri Creek,Chla,0.45,mean,high
+AP_AMB2,Spoil Grounds,Chla,0.45,mean,high
+AP_AMB3,Elliot River,Chla,0.45,mean,high
+AP_AMB4,Camp Island,Chla,0.45,mean,high
+AP_AMB5,Holbourne Island,Chla,0.45,mean,high
+WHI1,Double Cone Island,NOx,1,median,high
+WHI4,Pine Island,NOx,1,median,high
+WHI5,Seaforth Island,NOx,1,median,high
+WHI6,O'Connell River mouth,NOx,4,median,high
+WHI7,Repulse Islands dive mooring,NOx,1,,high
+MKY_AMB1,Freshwater Point,NOx,NA,,high
+MKY_AMB2,Hay Reef,NOx,NA,NA,high
+MKY_AMB3B,Round Top Island,NOx,NA,,high
+MKY_AMB5,Slade Island,NOx,NA,NA,high
+MKY_AMB6B,Dudgeon Point,NOx,NA,NA,high
+MKY_AMB8,Relocation ground (Spoil grounds),NOx,NA,NA,high
+MKY_AMB10,Victor Island,NOx,NA,,high
+MKY_AMB12,Keswick Island,NOx,1.00E-06,median,high
+MKY_CAM1,Aquilla Island,NOx,3,median,high
+MKY_CAM2,Carmila_2,NOx,3,median,high
+MKY_CAM3,Carmila_3,NOx,3,median,high
+AP_AMB1,Euri Creek,NOx,3,mean,high
+AP_AMB2,Spoil Grounds,NOx,3,mean,high
+AP_AMB3,Elliot River,NOx,3,mean,high
+AP_AMB4,Camp Island,NOx,3,mean,high
+AP_AMB5,Holbourne Island,NOx,3,mean,high
+WHI1,Double Cone Island,PN,13,median,high
+WHI4,Pine Island,PN,13,median,high
+WHI5,Seaforth Island,PN,13,median,high
+WHI6,O'Connell River mouth,PN,NA,,high
+WHI7,Repulse Islands dive mooring,PN,13,median,high
+MKY_AMB1,Freshwater Point,PN,20,mean,high
+MKY_AMB2,Hay Reef,PN,20,mean,high
+MKY_AMB3B,Round Top Island,PN,20,mean,high
+MKY_AMB5,Slade Island,PN,20,mean,high
+MKY_AMB6B,Dudgeon Point,PN,20,mean,high
+MKY_AMB8,Relocation ground (Spoil grounds),PN,20,mean,high
+MKY_AMB10,Victor Island,PN,20,mean,high
+MKY_AMB12,Keswick Island,PN,18,median,high
+MKY_CAM1,Aquilla Island,PN,20,mean,high
+MKY_CAM2,Carmila_2,PN,20,mean,high
+MKY_CAM3,Carmila_3,PN,20,mean,high
+AP_AMB1,Euri Creek,PN,20,mean,high
+AP_AMB2,Spoil Grounds,PN,20,mean,high
+AP_AMB3,Elliot River,PN,20,mean,high
+AP_AMB4,Camp Island,PN,20,mean,high
+AP_AMB5,Holbourne Island,PN,20,mean,high
+WHI1,Double Cone Island,PP,2.4,median,high
+WHI4,Pine Island,PP,2.4,median,high
+WHI5,Seaforth Island,PP,2.4,median,high
+WHI6,O'Connell River mouth,PP,NA,,high
+WHI7,Repulse Islands dive mooring,PP,2.4,median,high
+MKY_AMB1,Freshwater Point,PP,2.8,mean,high
+MKY_AMB2,Hay Reef,PP,2.8,mean,high
+MKY_AMB3B,Round Top Island,PP,2.8,mean,high
+MKY_AMB5,Slade Island,PP,2.8,mean,high
+MKY_AMB6B,Dudgeon Point,PP,2.8,mean,high
+MKY_AMB8,Relocation ground (Spoil grounds),PP,2.8,mean,high
+MKY_AMB10,Victor Island,PP,2.8,mean,high
+MKY_AMB12,Keswick Island,PP,2.1,median,high
+MKY_CAM1,Aquilla Island,PP,2.8,mean,high
+MKY_CAM2,Carmila_2,PP,2.8,mean,high
+MKY_CAM3,Carmila_3,PP,2.8,mean,high
+AP_AMB1,Euri Creek,PP,2.8,mean,high
+AP_AMB2,Spoil Grounds,PP,2.8,mean,high
+AP_AMB3,Elliot River,PP,2.8,mean,high
+AP_AMB4,Camp Island,PP,2.8,mean,high
+AP_AMB5,Holbourne Island,PP,2.8,mean,high
+WHI1,Double Cone Island,Chla,0.36,median,high
+WHI4,Pine Island,Chla,0.36,median,high
+WHI5,Seaforth Island,Chla,0.36,median,high
+WHI6,O'Connell River mouth,Chla,1.3,median,high
+WHI7,Repulse Islands dive mooring,Chla,0.36,median,high
+MKY_AMB1,Freshwater Point,Chla,0.45,mean,high
+MKY_AMB2,Hay Reef,Chla,0.45,mean,high
+MKY_AMB3B,Round Top Island,Chla,0.45,mean,high
+MKY_AMB5,Slade Island,Chla,0.45,mean,high
+MKY_AMB6B,Dudgeon Point,Chla,0.45,mean,high
+MKY_AMB8,Relocation ground (Spoil grounds),Chla,0.45,mean,high
+MKY_AMB10,Victor Island,Chla,0.45,mean,high
+MKY_AMB12,Keswick Island,Chla,0.45,mean,high
+MKY_CAM1,Aquilla Island,Chla,0.45,mean,high
+MKY_CAM2,Carmila_2,Chla,0.45,mean,high
+MKY_CAM3,Carmila_3,Chla,0.45,mean,high
+AP_AMB1,Euri Creek,Secchi,10,mean,low
+AP_AMB2,Spoil Grounds,Secchi,10,mean,low
+AP_AMB3,Elliot River,Secchi,10,mean,low
+AP_AMB4,Camp Island,Secchi,10,mean,low
+AP_AMB5,Holbourne Island,Secchi,10,mean,low
+WHI1,Double Cone Island,TSS,1.4,median,high
+WHI4,Pine Island,TSS,1.4,median,high
+WHI5,Seaforth Island,TSS,1.4,median,high
+WHI6,O'Connell River mouth,TSS,NA,,high
+WHI7,Repulse Islands dive mooring,TSS,1.4,median,high
+MKY_AMB1,Freshwater Point,TSS,2,mean,high
+MKY_AMB2,Hay Reef,TSS,2,mean,high
+MKY_AMB3B,Round Top Island,TSS,2,mean,high
+MKY_AMB5,Slade Island,TSS,2,mean,high
+MKY_AMB6B,Dudgeon Point,TSS,2,mean,high
+MKY_AMB8,Relocation ground (Spoil grounds),TSS,2,mean,high
+MKY_AMB10,Victor Island,TSS,2,mean,high
+MKY_AMB12,Keswick Island,TSS,1.6,median,high
+MKY_CAM1,Aquilla Island,TSS,2,mean,high
+MKY_CAM2,Carmila_2,TSS,2,mean,high
+MKY_CAM3,Carmila_3,TSS,2,mean,high
+AP_AMB1,Euri Creek,TSS,2,mean,high
+AP_AMB2,Spoil Grounds,TSS,2,mean,high
+AP_AMB3,Elliot River,TSS,2,mean,high
+AP_AMB4,Camp Island,TSS,2,mean,high
+AP_AMB5,Holbourne Island,TSS,2,mean,high
+WHI1,Double Cone Island,Secchi,10,mean,low
+WHI4,Pine Island,Secchi,10,mean,low
+WHI5,Seaforth Island,Secchi,10,mean,low
+WHI6,O'Connell River mouth,Secchi,NA,,low
+WHI7,Repulse Islands dive mooring,Secchi,10,mean,low
+MKY_AMB1,Freshwater Point,Secchi,10,mean,low
+MKY_AMB2,Hay Reef,Secchi,10,mean,low
+MKY_AMB3B,Round Top Island,Secchi,10,mean,low
+MKY_AMB5,Slade Island,Secchi,10,mean,low
+MKY_AMB6B,Dudgeon Point,Secchi,10,mean,low
+MKY_AMB8,Relocation ground (Spoil grounds),Secchi,10,mean,low
+MKY_AMB10,Victor Island,Secchi,10,mean,low
+MKY_AMB12,Keswick Island,Secchi,10,mean,low
+MKY_CAM1,Aquilla Island,Secchi,10,mean,low
+MKY_CAM2,Carmila_2,Secchi,10,mean,low
+MKY_CAM3,Carmila_3,Secchi,10,mean,low
+AP_AMB1,Euri Creek,Turbidity,1,median,high
+AP_AMB2,Spoil Grounds,Turbidity,1,median,high
+AP_AMB3,Elliot River,Turbidity,1,median,high
+AP_AMB4,Camp Island,Turbidity,1,median,high
+AP_AMB5,Holbourne Island,Turbidity,1,median,high
+WHI1,Double Cone Island,Turbidity,1.1,median,high
+WHI4,Pine Island,Turbidity,1.1,median,high
+WHI5,Seaforth Island,Turbidity,1.1,median,high
+WHI6,O'Connell River mouth,Turbidity,NA,,high
+WHI7,Repulse Islands dive mooring,Turbidity,1.1,median,high
+MKY_AMB1,Freshwater Point,Turbidity,1,median,high
+MKY_AMB2,Hay Reef,Turbidity,"Dry 2, Wet 12",median,high
+MKY_AMB3B,Round Top Island,Turbidity,1,median,high
+MKY_AMB5,Slade Island,Turbidity,"Dry 2, Wet 12",median,high
+MKY_AMB6B,Dudgeon Point,Turbidity,"Dry 2, Wet 12",median,high
+MKY_AMB8,Relocation ground (Spoil grounds),Turbidity,"Dry 2, Wet 12",median,high
+MKY_AMB10,Victor Island,Turbidity,1,median,high
+MKY_AMB12,Keswick Island,Turbidity,1,median,high
+MKY_CAM1,Aquilla Island,Turbidity,1,mean,high
+MKY_CAM2,Carmila_2,Turbidity,1,mean,high
+MKY_CAM3,Carmila_3,Turbidity,1,mean,high
