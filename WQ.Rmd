@@ -30,12 +30,14 @@ library(kableExtra) #for displaying nice tables
 library(ggstatsplot) #for finding outliers
 library(DT) #excel-like searchable data tables
 library(ggpubr) #grid prints for ggplot
-
+library(formattable) #colour coding tables for grades
 ```
 1. Data quality checks for missing values, LORs, and outliers in excel. Can outliers or missing values be explained by an event or are there mistakes? Flag and comment in excel, go back to data source to check when needed. LOR/LOD check (mainly SIP) transform values too low for detection, check limits and calculations (LOR * 0.5). Import this corrected raw data into R.
 
 # WQ Index
 ```{r wq-index}
+options(scipen=999)
+
 # load WQ index
 WQ_index <- import_list("data/WQ_Variables.xlsx", # GV, LOR, sites
             setclass = "tbl") # class is tibble, similar to dataframe
@@ -54,9 +56,10 @@ GV <- as.data.frame(WQ_index$GV_long) %>%
   mutate(Code = as.factor(Code),
          Name = as.factor(Name),
          Indicator = as.factor(Indicator),
-         Value = as.numeric(Value),
+         GV = as.numeric(Value),
          Stat = as.factor(Stat),
-         Failure = as.factor(Failure))
+         Dir_Fail = as.factor(Failure)) %>%
+  dplyr::select(-Failure, -Value)
 
 ```
 
@@ -217,41 +220,41 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
 # NTU
   #Summary output tables
       #remove NA values
-      ntuN <- ntuN[!is.na(ntuN$NTUe_mean), ] #create a dataframe removing all instances where NTU mean is NA
+      ntu <- ntu[!is.na(ntu$NTUe_mean), ] #create a dataframe removing all instances where NTU mean is NA
       
       #create a vector of outlier values
-      outliers <- boxplot(ntuN$NTUe_mean)$out 
+      outliers <- boxplot(ntu$NTUe_mean)$out 
       
       #outlier output table
-        ntuN_outliers <- ntuN %>%
+        ntu_outliers <- ntu %>%
         mutate(Outlier = ifelse(NTUe_mean %in% outliers, "TRUE", "FALSE")) %>%
         select(Date, Site_code, NTUe_mean, Outlier)
         
-        kable(ntuN_outliers[1:10, ],"html") %>% #first ten entries (this is a long table)
+        kable(ntu_outliers[1:10, ],"html") %>% #first ten entries (this is a long table)
           kable_styling(full_width=F) #make the table look nice
       
       #quartile values output table
-      ntuN %>%
+      ntu %>%
         select(NTUe_mean) %>%
         summary() %>%
         kable("html") %>% kable_styling(full_width=F) #make the table look nice
       
   #boxplots per site
       #check to see that sample sizes are the same for each site
-      sample_size <- ntuN %>% group_by(Site_name) %>% summarize(num=n()) #number of entries for each site
+      sample_size <- ntu %>% group_by(Site_name) %>% summarize(num=n()) #number of entries for each site
       sample_size %>% #print a table that shows the number of entries for each site
         kable("html", col.names = c("Site", "NTU sample size")) %>% kable_styling(full_width=F) #make the table look nice
       #***Holbourne Island has the lowest sample size at 189 and Euri Creek is the highest at 234
       
       #Boxplots by site
-     ntu_boxplot <-  ntuN %>%
+     ntu_boxplot <-  ntu %>%
         left_join(sample_size, by = "Site_name") %>%
         mutate(site = paste0(Site_name, "\n", "n=", num)) %>% #print sample size next to site name
       ggplot( aes(x=site, y=NTUe_mean)) + #calling NTU mean as y and site as x
-        # geom_boxplot(varwidth = TRUE) #create boxplot with width determined by sample size
-        geom_violin(width = 1.4, alpha=0.5) + #violin plot more accurately depicts distribution and sample size
-        geom_boxplot(width=0.1) + #depict boxplot inside of the violin plot
-        geom_jitter(color="grey", size=0.7, alpha=0.4) #add all points to visualise distribution and sample size
+        geom_boxplot(varwidth = TRUE) #create boxplot with width determined by sample size
+        # geom_violin(width = 1.4, alpha=0.5) + #violin plot more accurately depicts distribution and sample size
+        # geom_boxplot(width=0.1) + #depict boxplot inside of the violin plot
+        # geom_jitter(color="grey", size=0.7, alpha=0.4) #add all points to visualise distribution and sample size
 
      ntu_boxplot #prints plot
       
@@ -279,7 +282,7 @@ ggplot(ntu, aes(Date, NTUe_mean)) + #x axis date, y axis NTUe mean
 6) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
 
 # Whitsundays=======================
-MMP and BP data
+MMP data
 ```{r MMP-site-vectors}
 #create vectors of site codes
 whit <- c("WHI1", "WHI4", "WHI5")
@@ -429,10 +432,11 @@ dev.off()
       # Create stats table 
       #Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
       
-      #data wide to long
-      nutrients_whit_long <- nutrients_whit %>%
+      #data wide to long, measuring against guideline values
+      whit_stats <- nutrients_whit %>%
         gather(Indicator, Value, Secchi:PP) %>%
         select(-Date, -zone, -supplier, -Season) %>%
+  left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator")) %>%
         # unite("Site", Code:Name, sep = " ") %>%
         group_by(Name, Indicator) %>%
         mutate(Mean = mean(Value),
@@ -440,22 +444,94 @@ dev.off()
                '25th' = quantile(Value, probs = .25),
                Median = median(Value),
                '75th' = quantile(Value, probs = .75),
-               Maximum = max(Value)) %>%
+               Maximum = max(Value),
+               Stat_val = ifelse(Stat %in% "mean", mean(Value), 
+                                 ifelse(Stat %in% "median", median(Value),NA)),
+               Failure = ifelse(Dir_Fail == "low" & Stat_val < GV, "too low",
+                                ifelse(Dir_Fail == "high" & Stat_val > GV, "too high", "pass"))) %>%
         select(-Value) %>%
         distinct()
-      
-      data_stats_whit <- nutrients_whit_long %>%
-        left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator"))
 
-nutrients_whit_scores <- nutrients_whit %>%
-        gather(Indicator, Value, Secchi:PP) %>%
-        select(-Date, -zone, -supplier, -Season) %>%
-        group_by(Name, Indicator) %>%
-        left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator")) %>%
-  group_by(Code, Indicator) %>%
-  mutate(data_value = )
+#indicator avg data value
+whit_values <- whit_stats %>%
+        select(Code, Name, Indicator, Stat_val) %>%
+        pivot_wider(names_from = Indicator, 
+                    values_from = Stat_val)
+        
+#creating standardised scores by converting numeric values to grades from 0-100
+whit_standardised <- whit_stats %>%
+        select(Code, Name, Indicator, Stat_val, GV) %>%
+        mutate(standardised = ifelse((log((GV/Stat_val),2))<=-1,-1,(ifelse((log((GV/Stat_val),2))>=1,1,(log((GV/Stat_val),2)))))) %>%
+        select(-GV, -Stat_val) %>%
+        pivot_wider(names_from = Indicator, 
+                    values_from = Standardised)
+
+whit_categories <- whit_standardised %>%
+  mutate(Nutrients = mean(NOx:PP),
+         Chla = Chla,
+         Clarity = mean(TSS:Secchi)) %>%
+  select(Name, Code, Nutrients, Chla, Clarity)
+
+whit_zone_score <- colMeans(whit_categories[c("Nutrients", "Chla", "Clarity")]) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(Zone = "Whitsunday")
+
+whit_zone_grade <- whit_zone_score %>%
+  transmute(Zone = "Whitsunday",
+          Nutrients = 40.9- (19.9 - ((Nutrients -(-0.66)) * (19.9/0.32))),
+          Chla =60.9- (19.9 - ((Chla -(-0.33)) * (19.9/0.32))),
+          Clarity = 40.9- (19.9 - ((Clarity -(-0.66)) * (19.9/0.32)))) %>%
+  mutate('Water Quality' = mean(Nutrients:Clarity))
 
 
+
+81:100, 61:80, 41:60, 21:40, 0:20
+"#00B050", "#92D050", "#FFFF00", "#FFC000", "#FF0000"
+
+colours <- col_bin(
+  palette=c("#00B050", "#92D050", "#FFFF00", "#FFC000", "#FF0000"),
+  domain=c(81:100, 61:80, 41:60, 21:40, 0:20),
+  bins = 5,
+  pretty = TRUE,
+  na.color = "#808080",
+  alpha = FALSE,
+  reverse = FALSE,
+  right = FALSE
+)
+
+
+color.picker <- function(z){
+  if(z <= 81){return("#00B050")}
+  else if( z > 60 & z <= 80){return("#92D050")}
+  else {return("#FFFF00")}
+}
+
+text.cols <- sapply(c(whit_zone_grade), color.picker)
+text(centers[,2], centers[,1], c(my.data), col= text.cols)
+
+
+formattable(whit_zone_grade,
+            align = c("l", "c", "c", "c", "r"),
+            color = color.picker)
+
+
+81:100 = "#00B050"
+Good = "#92D050"
+Moderate = "#FFFF00"
+Poor = "#FFC000"
+VeryPoor = "#FF0000"
+
+data_color(
+    columns = population,
+    colors = scales::col_numeric(
+      palette = c(
+        "red", "orange", "green", "blue"),
+      domain = c(0.2E7, 0.4E7))
+  )
+
+# #example from WH1 NOx 19/20
+# ifelse((log((1/.77),2))<=-1,-1,(ifelse((log((1/.77),2))>=1,1,(log((1/.77),2)))))
 
 ```
 1) use stats table to get annual mean or median for each site
