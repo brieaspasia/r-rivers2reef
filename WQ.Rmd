@@ -300,22 +300,26 @@ mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
             
       #remove unnecessary columns and classify type
       nutrients_mmp <- nutrients_mmp %>%
+        filter(DEPTH_CODE == "D0") %>%
         mutate(Code = as.factor(SHORT_NAME),
-               Name = as.factor(LOCATION_NAME),
-               Date = dmy(Date),
-               Depth = as.factor(DEPTH_CODE)) %>%
-        select(Depth, Code, Date, Name, SECCHI_DEPTH_m, 
-               NO2_uM, NO3_uM, PN_SHIM_uM, PP_uM, 
-               TSS_mg.l, Chl_ug.l)
+               Name = as.factor(LOCATION_NAME)) %>%
+               # Date = dmy(Date),
+               # Depth = as.factor(DEPTH_CODE)) %>%
+        select(Code, 
+                # Depth,              
+               # Date, 
+               Name, SECCHI_DEPTH_m, 
+               NO2_uM, NO3_uM, PN_uM, PP_uM, 
+               TSS_mg.L, Chl_ug.L)
       
       #conversions
       nutrients_mmp <- nutrients_mmp %>%
         mutate(NOx_uM = NO2_uM + NO3_uM,
                NOx_ug.l = NOx_uM*14,
-               PN_ug.l = PN_SHIM_uM*14,
+               PN_ug.l = PN_uM*14,
                PP_ug.l = PP_uM*30.97) %>%
-        select(Depth:SECCHI_DEPTH_m, TSS_mg.l, 
-               Chl_ug.l, NOx_ug.l, PN_ug.l, PP_ug.l)
+        select(Code:SECCHI_DEPTH_m, TSS_mg.L, 
+               Chl_ug.L, NOx_ug.l, PN_ug.l, PP_ug.l)
       
 # # Comparisons between surface and depth samples   
 #         # create wide df to calc across depths
@@ -337,8 +341,7 @@ mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
 
       
 # nutrients_mmp <- nutrients_mmp %>%
-#   filter(Depth == "D0") %>%
-#   left_join(mmp_nut_wide, by = c("Code", "Date"))
+#   filter(Depth == "D0") 
 
 # #create df for weighted avg results to compare to surface layers
 # nutrients_mmp_avg <- nutrients_mmp %>%
@@ -351,8 +354,8 @@ mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
 nutrients_mmp <- nutrients_mmp %>%
   select(Code:PP_ug.l) %>%
   rename(Secchi = SECCHI_DEPTH_m,
-         TSS = TSS_mg.l,
-         Chla = Chl_ug.l,
+         TSS = TSS_mg.L,
+         Chla = Chl_ug.L,
          NOx = NOx_ug.l,
          PN = PN_ug.l,
          PP = PP_ug.l) %>%
@@ -435,7 +438,7 @@ dev.off()
       #data wide to long, measuring against guideline values
       whit_stats <- nutrients_whit %>%
         gather(Indicator, Value, Secchi:PP) %>%
-        select(-Date, -zone, -supplier, -Season) %>%
+        select(-zone, -supplier, -Season) %>%
   left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator")) %>%
         # unite("Site", Code:Name, sep = " ") %>%
         group_by(Name, Indicator) %>%
@@ -489,51 +492,54 @@ whit_zone_grade <- whit_zone_score %>%
           Clarity = 40.9- (19.9 - ((Clarity -(-0.66)) * (19.9/0.32)))) %>%
   mutate('Water Quality' = mean(Nutrients:Clarity))
 
+datatable(whit_zone_grade, rownames = FALSE) %>%
+  formatStyle(columns = "Chla", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Nutrients", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Clarity", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Water Quality", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050")))
 
 
-# 81:100, 61:80, 41:60, 21:40, 0:20
-# "#00B050", "#92D050", "#FFFF00", "#FFC000", "#FF0000"
 
-colours <- col_bin(
-  palette=c("#00B050", "#92D050", "#FFFF00", "#FFC000", "#FF0000"),
-  domain=c(81:100, 61:80, 41:60, 21:40, 0:20),
-  bins = 5,
-  pretty = TRUE,
-  na.color = "#808080",
-  alpha = FALSE,
-  reverse = FALSE,
-  right = FALSE
-)
-
-
-color.picker <- function(z){
-  if(z <= 81){return("#00B050")}
-  else if( z > 60 & z <= 80){return("#92D050")}
-  else {return("#FFFF00")}
-}
-
-text.cols <- sapply(c(whit_zone_grade), color.picker)
-text(centers[,2], centers[,1], c(my.data), col= text.cols)
-
-
-formattable(whit_zone_grade,
-            align = c("l", "c", "c", "c", "r"),
-            color = color.picker)
+# colour_formatter <- formatter("span", 
+#   style = x ~ style(color = 
+#                       case_when(x > 80 ~ "#00B050", 
+#                                 x < 81 & x >= 61 ~ "#92D050",
+#                                 x < 61 & x >= 41 ~ "#FFFF00",
+#                                 x < 41 & x >= 21 ~ "#FFC000",
+#     TRUE ~ "#FF0000")))
+# 
+# 81:100 = "#00B050"
+# Good = "#92D050"
+# Moderate = "#FFFF00"
+# Poor = "#FFC000"
+# VeryPoor = "#FF0000"
+# 
+# 
+# formattable(whit_zone_grade, list(Chla = colour_formatter,
+#                                   Nutrients = colour_formatter,
+#                                   Clarity = colour_formatter,
+#                                   'Water Quality' = colour_formatter))
+# 
+# formattable(whit_zone_grade, list(Chla = color_bar("#00B050")))
 
 
-81:100 = "#00B050"
-Good = "#92D050"
-Moderate = "#FFFF00"
-Poor = "#FFC000"
-VeryPoor = "#FF0000"
 
-data_color(
-    columns = population,
-    colors = scales::col_numeric(
-      palette = c(
-        "red", "orange", "green", "blue"),
-      domain = c(0.2E7, 0.4E7))
-  )
+# formattable(whit_zone_grade,
+#             align = c("l", "c", "c", "c", "r"),
+#             list(Chla = color.picker))
+
+
+# data_color(
+#     columns = population,
+#     colors = scales::col_numeric(
+#       palette = c(
+#         "red", "orange", "green", "blue"),
+#       domain = c(0.2E7, 0.4E7))
+#   )
 
 ```
 1) use stats table to get annual mean or median for each site
