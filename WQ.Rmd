@@ -304,7 +304,7 @@ mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
                Name = as.factor(LOCATION_NAME),
                Date = dmy(Date),
                Depth = as.factor(DEPTH_CODE)) %>%
-        select(Depth, Code, Date, Name, Secchi_depth_m, 
+        select(Depth, Code, Date, Name, SECCHI_DEPTH_m, 
                NO2_uM, NO3_uM, PN_SHIM_uM, PP_uM, 
                TSS_mg.l, Chl_ug.l)
       
@@ -314,43 +314,43 @@ mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
                NOx_ug.l = NOx_uM*14,
                PN_ug.l = PN_SHIM_uM*14,
                PP_ug.l = PP_uM*30.97) %>%
-        select(Depth:Secchi_depth_m, TSS_mg.l, 
+        select(Depth:SECCHI_DEPTH_m, TSS_mg.l, 
                Chl_ug.l, NOx_ug.l, PN_ug.l, PP_ug.l)
       
-# Comparisons between surface and depth samples   
-        # create wide df to calc across depths
-      mmp_nut_wide <- nutrients_mmp %>%
-        pivot_wider(names_from = Depth, 
-                    values_from = TSS_mg.l:PP_ug.l) %>%
-        mutate(TSS_avg = 
-                 rowMeans(select(.,TSS_mg.l_D0: TSS_mg.l_D1)),
-               Chl_avg = 
-                 rowMeans(select(.,Chl_ug.l_D0: Chl_ug.l_D1)),
-               NOx_avg =
-                 rowMeans(select(.,NOx_ug.l_D0: NOx_ug.l_D1)),
-               PN_avg =
-                 rowMeans(select(.,PN_ug.l_D0: PN_ug.l_D1)),
-               PP_avg =
-                 rowMeans(select(.,PP_ug.l_D0: PP_ug.l_D1))) %>%
-        select(Code, Date, TSS_avg:PP_avg)
+# # Comparisons between surface and depth samples   
+#         # create wide df to calc across depths
+#       mmp_nut_wide <- nutrients_mmp %>%
+#         pivot_wider(names_from = Depth, 
+#                     values_from = TSS_mg.l:PP_ug.l) %>%
+#         mutate(TSS_avg = 
+#                  rowMeans(select(.,TSS_mg.l_D0: TSS_mg.l_D1)),
+#                Chl_avg = 
+#                  rowMeans(select(.,Chl_ug.l_D0: Chl_ug.l_D1)),
+#                NOx_avg =
+#                  rowMeans(select(.,NOx_ug.l_D0: NOx_ug.l_D1)),
+#                PN_avg =
+#                  rowMeans(select(.,PN_ug.l_D0: PN_ug.l_D1)),
+#                PP_avg =
+#                  rowMeans(select(.,PP_ug.l_D0: PP_ug.l_D1))) %>%
+#         select(Code, Date, TSS_avg:PP_avg)
       
 
       
-nutrients_mmp <- nutrients_mmp %>%
-  filter(Depth == "D0") %>%
-  left_join(mmp_nut_wide, by = c("Code", "Date"))
+# nutrients_mmp <- nutrients_mmp %>%
+#   filter(Depth == "D0") %>%
+#   left_join(mmp_nut_wide, by = c("Code", "Date"))
 
-#create df for weighted avg results to compare to surface layers
-nutrients_mmp_avg <- nutrients_mmp %>%
-  select(Code:Secchi_depth_m, TSS_avg:PP_avg) %>%
-  mutate(zone = ifelse(Code %in% whit, "Whitsundays", "Central"),
-         supplier = "MMP",
-         Season = NA)
+# #create df for weighted avg results to compare to surface layers
+# nutrients_mmp_avg <- nutrients_mmp %>%
+#   select(Code:Secchi_depth_m, TSS_avg:PP_avg) %>%
+#   mutate(zone = ifelse(Code %in% whit, "Whitsundays", "Central"),
+#          supplier = "MMP",
+#          Season = NA)
 
 #create df for surface data only
 nutrients_mmp <- nutrients_mmp %>%
   select(Code:PP_ug.l) %>%
-  rename(Secchi = Secchi_depth_m,
+  rename(Secchi = SECCHI_DEPTH_m,
          TSS = TSS_mg.l,
          Chla = Chl_ug.l,
          NOx = NOx_ug.l,
@@ -461,15 +461,20 @@ whit_values <- whit_stats %>%
 #creating standardised scores by converting numeric values to grades from 0-100
 whit_standardised <- whit_stats %>%
         select(Code, Name, Indicator, Stat_val, GV) %>%
-        mutate(standardised = ifelse((log((GV/Stat_val),2))<=-1,-1,(ifelse((log((GV/Stat_val),2))>=1,1,(log((GV/Stat_val),2)))))) %>%
+        mutate(standardised = case_when(
+          Indicator %in% "Secchi" ~ifelse((log((Stat_val/GV),2))<=-1,-1,(ifelse((log((Stat_val/GV),2))>=1,1,(log((Stat_val/GV),2))))),
+                                        TRUE ~ ifelse((log((GV/Stat_val),2))<=-1,-1,(ifelse((log((GV/Stat_val),2))>=1,1,(log((GV/Stat_val),2))))))) %>%
         select(-GV, -Stat_val) %>%
         pivot_wider(names_from = Indicator, 
-                    values_from = Standardised)
+                    values_from = standardised)
+
+# *** Secchi needs to be Stat_val/GV, all other indicators GV/Stat_val
+
 
 whit_categories <- whit_standardised %>%
-  mutate(Nutrients = mean(NOx:PP),
+  mutate(Nutrients = mean(c(NOx, PN, PP)),
          Chla = Chla,
-         Clarity = mean(TSS:Secchi)) %>%
+         Clarity = mean(c(Secchi,TSS))) %>%
   select(Name, Code, Nutrients, Chla, Clarity)
 
 whit_zone_score <- colMeans(whit_categories[c("Nutrients", "Chla", "Clarity")]) %>%
@@ -486,8 +491,8 @@ whit_zone_grade <- whit_zone_score %>%
 
 
 
-81:100, 61:80, 41:60, 21:40, 0:20
-"#00B050", "#92D050", "#FFFF00", "#FFC000", "#FF0000"
+# 81:100, 61:80, 41:60, 21:40, 0:20
+# "#00B050", "#92D050", "#FFFF00", "#FFC000", "#FF0000"
 
 colours <- col_bin(
   palette=c("#00B050", "#92D050", "#FFFF00", "#FFC000", "#FF0000"),
@@ -529,9 +534,6 @@ data_color(
         "red", "orange", "green", "blue"),
       domain = c(0.2E7, 0.4E7))
   )
-
-# #example from WH1 NOx 19/20
-# ifelse((log((1/.77),2))<=-1,-1,(ifelse((log((1/.77),2))>=1,1,(log((1/.77),2)))))
 
 ```
 1) use stats table to get annual mean or median for each site
