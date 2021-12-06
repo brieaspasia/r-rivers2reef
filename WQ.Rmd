@@ -31,6 +31,7 @@ library(ggstatsplot) #for finding outliers
 library(DT) #excel-like searchable data tables
 library(ggpubr) #grid prints for ggplot
 library(formattable) #colour coding tables for grades
+library(openxlsx) #fixing excel date formats
 ```
 1. Data quality checks for missing values, LORs, and outliers in excel. Can outliers or missing values be explained by an event or are there mistakes? Flag and comment in excel, go back to data source to check when needed. LOR/LOD check (mainly SIP) transform values too low for detection, check limits and calculations (LOR * 0.5). Import this corrected raw data into R.
 
@@ -296,18 +297,19 @@ mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
 ```{r import-data, message=F, warning=F}
 # load and set up MMP data  
       # load MMP nutrients
-      nutrients_mmp <- read.csv("data/21_WQ_MMP_nutrients.csv") 
+      nutrients_mmp <- read.csv("data/21_WQ_MMP_nutrients.csv")
+
+str(nutrients_mmp)
             
       #remove unnecessary columns and classify type
       nutrients_mmp <- nutrients_mmp %>%
         filter(DEPTH_CODE == "D0") %>%
         mutate(Code = as.factor(SHORT_NAME),
-               Name = as.factor(LOCATION_NAME)) %>%
-               # Date = dmy(Date),
-               # Depth = as.factor(DEPTH_CODE)) %>%
+               Name = as.factor(LOCATION_NAME), 
+               Date = dmy(Date)) %>%
         select(Code, 
                 # Depth,              
-               # Date, 
+               Date,
                Name, SECCHI_DEPTH_m, 
                NO2_uM, NO3_uM, PN_uM, PP_uM, 
                TSS_mg.L, Chl_ug.L)
@@ -458,12 +460,14 @@ dev.off()
 #indicator avg data value
 whit_values <- whit_stats %>%
         select(Code, Name, Indicator, Stat_val) %>%
+        distinct() %>%
         pivot_wider(names_from = Indicator, 
                     values_from = Stat_val)
         
 #creating standardised scores by converting numeric values to grades from 0-100
 whit_standardised <- whit_stats %>%
         select(Code, Name, Indicator, Stat_val, GV) %>%
+        distinct() %>%
         mutate(standardised = case_when(
           Indicator %in% "Secchi" ~ifelse((log((Stat_val/GV),2))<=-1,-1,(ifelse((log((Stat_val/GV),2))>=1,1,(log((Stat_val/GV),2))))),
                                         TRUE ~ ifelse((log((GV/Stat_val),2))<=-1,-1,(ifelse((log((GV/Stat_val),2))>=1,1,(log((GV/Stat_val),2))))))) %>%
@@ -548,9 +552,9 @@ datatable(whit_zone_grade, rownames = FALSE) %>%
 
 3) Avg of indicators to form indicator category (need to have 60% of indicators to grade)
 
-4) Indicator zone level (avg of sties)
+4) Indicator zone level (avg of sites)
 
-5) standardised score (join indicator zone level score to WQ index to determine Condition and resulting equation to calc GBR range)
+5) Standardised score (join indicator zone level score to WQ index to determine Condition and resulting equation to calc GBR range)
 
 6) avg of nutrients, chl-a, clarity, and pesticides to get WQ grade, need 60% (3/4) to write results.
 ```{r mmp-boxplots-whit-weightedAVG}
