@@ -35,7 +35,10 @@ library(ggpubr) #grid prints for ggplot
 library(formattable) #colour coding tables for grades
 library(openxlsx) #fixing excel date formats
 
-# Look into flextable as another option for formatting and colour-coding
+# Look into flextable, reactable, or gt as other option for formatting and colour-coding. Use datatable for anything that needs to be searchable, formattable for lovely design.
+# https://rstudio.github.io/DT/
+#https://www.littlemissdata.com/blog/prettytables
+#https://rfortherestofus.com/2019/11/how-to-make-beautiful-tables-in-r/
 ```
 
 # Setup and references
@@ -117,10 +120,12 @@ nqbp <- c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5", "MKY_AMB1", "MK
         filter(Code %in% whit)
       
 #plot a time series for each site
-ggplot(turbidity_whit, aes(Date, NTU_QA_AVG)) + #x axis date, y axis NTU mean
+turbidity_line_whit <- ggplot(turbidity_whit, aes(Date, NTU_QA_AVG)) + #x axis date, y axis NTU mean
   geom_line() + #line graph
   facet_wrap(~Name, scales = "free_y") + # separate plot for each site, axis range responsive to site
   theme(axis.text.x = element_text(angle = 45)) #angle axis text for clarity
+
+ggsave("output/turbidity_line.png")
 ```
 
 ### Creating final data
@@ -174,6 +179,8 @@ outliers_whit <- wq_whit %>%
   filter(Outlier != "Pass")
 
 datatable(outliers_whit)
+
+
 ```
 
 ### Clean data
@@ -269,7 +276,7 @@ formattable(whit_zone_score)
 ***** Very suspicious that Chl-a has gone from moderate in 2020 to very good in 2021...  need to check these numbers.
 ```{r zone-grade}
 
-# I'm sure there's a better way to assign colours!
+# I'm sure there's a better way to assign colours! Maybe simplify with lapply?
 
 whit_zone_grade <- whit_zone_score %>%
   transmute(Zone = "Whitsunday",
@@ -324,11 +331,13 @@ formattable(TSS_quantile) %>%
 
 ```
 ```{r boxplot-TSS}
-nutrients_whit %>%
+boxplot_TSS <- nutrients_whit %>%
   mutate(Zone = "Whitsunday") %>%
   select(Zone, TSS) %>%
   ggplot() +
     geom_boxplot(aes(x=Zone, y = TSS))
+
+ggsave("output/boxplot_TSS.png")
 ```
 
 ## Chlorophyll-a
@@ -340,7 +349,6 @@ Chla_whit_outliers <- nutrients_whit %>%
   select(Code, Name, Date, Chla) %>%
   mutate(Outlier = ifelse(Chla %in% outliers, "TRUE", "FALSE"))
 
-#*** Need to create somehting in cases where there's no outliers
 formattable(Chla_whit_outliers)
 ```
 
@@ -365,11 +373,13 @@ formattable(Chla_quantile) %>%
   kable_styling(full_width = F)
 ```
 ```{r boxplot-Chla}
-nutrients_whit %>%
+boxplot_chla <- nutrients_whit %>%
   mutate(Zone = "Whitsunday") %>%
   select(Zone, Chla) %>%
   ggplot() +
     geom_boxplot(aes(x=Zone, y = Chla))
+
+ggsave("output/boxplot_Chla.png")
 ```
 
 ## NOx
@@ -381,7 +391,6 @@ NOx_whit_outliers <- nutrients_whit %>%
   select(Code, Name, Date, NOx) %>%
   mutate(Outlier = ifelse(NOx %in% outliers, "TRUE", "FALSE"))
 
-#*** Need to create somehting in cases where there's no outliers
 formattable(NOx_whit_outliers)
 ```
 
@@ -403,14 +412,17 @@ NOx_quantile <- nutrients_whit %>%
 
 formattable(NOx_quantile) %>%
   kable("html", caption = "NOx: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
-  kable_styling(full_width = F)
+  kable_styling(full_width = F) %>%
+  save_kable("output/NOx_quantile.pdf")
 ```
 ```{r boxplot-NOx}
-nutrients_whit %>%
+boxplot_NOx <- nutrients_whit %>%
   mutate(Zone = "Whitsunday") %>%
   select(Zone, NOx) %>%
   ggplot() +
     geom_boxplot(aes(x=Zone, y = NOx))
+
+ggsave("output/boxplot_NOx.png")
 ```
 
 ## Secchi
@@ -423,8 +435,8 @@ Secchi_whit_outliers <- nutrients_whit %>%
   select(Code, Name, Date, Secchi) %>%
   mutate(Outlier = ifelse(Secchi %in% outliers, "TRUE", "FALSE"))
 
-#*** Need to create somehting in cases where there's no outliers
-formattable(Secchi_whit_outliers)
+formattable(Secchi_whit_outliers) %>%
+  save_kable("output/Secchi_whit_outliers.pdf")
 ```
 
 ```{r quantile-Secchi}
@@ -445,14 +457,17 @@ Secchi_quantile <- nutrients_whit %>%
 
 formattable(Secchi_quantile) %>%
   kable("html", caption = "Secchi: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
-  kable_styling(full_width = F)
+  kable_styling(full_width = F) %>%
+  save_kable("output/Secchi_quantile.pdf")
 ```
 ```{r boxplot-Secchi}
-nutrients_whit %>%
+boxplot_secchi <- nutrients_whit %>%
   mutate(Zone = "Whitsunday") %>%
   select(Zone, Secchi) %>%
   ggplot() +
     geom_boxplot(aes(x=Zone, y = Secchi))
+
+ggsave("output/boxplot_Secchi.png")
 ```
 
 
@@ -487,14 +502,17 @@ PN_quantile <- nutrients_whit %>%
 
 formattable(PN_quantile) %>%
   kable("html", caption = "PN: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
-  kable_styling(full_width = F)
+  kable_styling(full_width = F) %>%
+  save_kable("output/PN_quantile.pdf")
 ```
 ```{r boxplot-PN}
-nutrients_whit %>%
+boxplot_PN <- nutrients_whit %>%
   mutate(Zone = "Whitsunday") %>%
   select(Zone, PN) %>%
   ggplot() +
     geom_boxplot(aes(x=Zone, y = PN))
+
+ggsave("output/boxplot_PN.png")
 ```
 ## PP
 
@@ -505,7 +523,6 @@ PP_whit_outliers <- nutrients_whit %>%
   select(Code, Name, Date, PP) %>%
   mutate(Outlier = ifelse(PP %in% outliers, "TRUE", "FALSE"))
 
-#*** Need to create somehting in cases where there's no outliers
 formattable(PP_whit_outliers)
 ```
 
@@ -527,14 +544,17 @@ PP_quantile <- nutrients_whit %>%
 
 formattable(PP_quantile) %>%
   kable("html", caption = "PP: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
-  kable_styling(full_width = F)
+  kable_styling(full_width = F) %>%
+  save_kable("output/PP_quantile.pdf")
 ```
 ```{r boxplot-PP}
-nutrients_whit %>%
+boxplot_PP <- nutrients_whit %>%
   mutate(Zone = "Whitsunday") %>%
   select(Zone, PP) %>%
   ggplot() +
     geom_boxplot(aes(x=Zone, y = PP))
+
+ggsave("output/boxplot_PP.png")
 ```
 
 ## NTU
@@ -569,13 +589,14 @@ NTU_quantile <- turbidity_whit %>%
 
 formattable(NTU_quantile) %>%
   kable("html", caption = "NTU: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
-  kable_styling(full_width = F)
+  kable_styling(full_width = F)%>%
+  save_kable("output/NOx_quantile.pdf")
 ```
 ```{r boxplot-NTU}
 sample_size <- turbidity_whit %>% group_by(Code) %>% summarize(num=n())
 
  #Boxplots by site
-     NTU_boxplot <-  turbidity_whit %>%
+    boxplot_NTU <-  turbidity_whit %>%
        rename(NTU = NTU_QA_AVG) %>%
         left_join(sample_size, by = "Code") %>%
         mutate(Site = paste0(Name, "\n", "n=", num)) %>% #print sample size next to site name
@@ -585,5 +606,5 @@ sample_size <- turbidity_whit %>% group_by(Code) %>% summarize(num=n())
         geom_boxplot(width=0.1) + #depict boxplot inside of the violin plot
         geom_jitter(color="grey", size=0.7, alpha=0.4) #add all points to visualise distribution and sample size
 
-     NTU_boxplot #prints plot
+     ggsave("output/boxplot_NTU.png")
 ```
