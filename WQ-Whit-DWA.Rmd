@@ -1,0 +1,593 @@
+---
+title: "WQ-Whit-Depth-Weighted-AVG"
+author: "Brie Sherow"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+    df_print: paged
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load-libraries, message=F, warning=F}
+library(ggplot2) #graphing
+library(ggthemes) #graphing templates
+library(purrr) #looping
+library(lubridate) #date manipulation
+library(forcats) #working with factors
+library(tidyverse) #manipulating data 
+library(knitr) #rmarkdown functions
+library(tidyr) #long & wide formats
+library(reshape2) #melt function for wide and long formats
+library(rio) #import xlsx with multiple sheets
+library(kableExtra) #for displaying nice tables
+library(ggstatsplot) #for finding outliers
+library(DT) #excel-like searchable data tables
+library(ggpubr) #grid prints for ggplot
+library(formattable) #colour coding tables for grades
+library(openxlsx) #fixing excel date formats
+library(readxl) #load excel sheets
+
+# Look into flextable as another option for formatting and colour-coding
+```
+
+# Setup and references
+```{r wq-index, message=F, warning=F}
+options(scipen=999) # force non-scientific notation
+
+# load WQ index
+WQ_index <- import_list("data/WQ_Variables.xlsx", # GV, LOR, sites
+            setclass = "tbl") # class is tibble, similar to dataframe
+
+#site info
+sites <- as.data.frame(WQ_index$sites)
+
+# #lower limits of reporting for each partner - may be easier just to specify values in an equation when needed
+# LOR <- as.data.frame(WQ_index$'WQ-LOR')
+# # LOR wide to long
+# LOR_long <- gather(LOR, Indicator, Value, PN:Turbidity, factor_key=TRUE)
+
+# guideline values for failures
+GV <- as.data.frame(WQ_index$GV_long) %>%
+  mutate(Code = as.factor(Code),
+         Name = as.factor(Name),
+         Indicator = as.factor(Indicator),
+         GV = as.numeric(Value),
+         Stat = as.factor(Stat),
+         Dir_Fail = as.factor(Failure)) %>%
+  dplyr::select(-Failure, -Value)
+
+```
+Create vectors to distinguish data providers and zones.  Data providers include MMP, NQBP, and SIP.  Zones include northern, whitsundays, central, and southern.
+```{r MMP-site-vectors, message=F, warning=F}
+#create vectors of site codes
+northern <- c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5")
+whit <- c("WHI1", "WHI4", "WHI5")
+central <- c("MKY_AMB1", "MKY_AMB2", "MKY_AMB3B", "MKY_AMB5", "MKY_AMB6B", "MKY_AMB8", "MKY_AMB10", "MKY_AMB12", "WHI6", "WHI7")
+mmp <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
+nqbp <- c("AP_AMB1", "AP_AMB2", "AP_AMB3", "AP_AMB4", "AP_AMB5", "MKY_AMB1", "MKY_AMB2", "MKY_AMB3B", "MKY_AMB5", "MKY_AMB6B", "MKY_AMB8", "MKY_AMB10", "MKY_AMB12")
+```
+
+# Zone Level
+
+## Whitsundays
+
+### Raw data
+
+****** TO DO: Check for duplicate entries, check outlier rules, add svg or table outputs to output folder
+
+```{r import-data-nutrients, message=F, warning=F}
+# load and set up MMP data  
+      # load MMP nutrients
+      nutrients_mmp <- read_excel("data/21_WQ_MMP_DWA_nutrients.xlsx")
+
+      nutrients_mmp <- as.data.frame(nutrients_mmp)
+
+str(nutrients_mmp)
+            
+      #remove unnecessary columns and set proper classes
+      nutrients_mmp <- nutrients_mmp %>%
+        mutate(Code = as.factor(SHORT_NAME),
+               Name = as.factor(LOCATION_NAME),
+               Date = convertToDate(as.numeric(SAMPLE_DATE))) %>%
+        select(Code, 
+               Date,
+               Name, SECCHI_DEPTH_m,
+               NO2_uM, NO3_uM, PN_uM, PP_uM, 
+               TSS_mg.L, Chl_ug.L)
+```
+
+```{r import-data-turbidity, message=F, warning=F}
+# load and set up MMP data  
+      # load MMP turbidity
+      turbidity_mmp <- read.csv("data/21_WQ_MMP_turbidity.csv")
+
+ #remove unnecessary columns and set proper classes
+      turbidity_mmp <- turbidity_mmp %>%
+        mutate(Code = as.factor(Code),
+               Name = as.factor(Name), 
+               Date = dmy(Date)) %>%
+        select(Code,Name, Date, NTU_QA_AVG)
+      
+      turbidity_whit <- turbidity_mmp %>%
+        filter(Code %in% whit)
+      
+#plot a time series for each site
+ggplot(turbidity_whit, aes(Date, NTU_QA_AVG)) + #x axis date, y axis NTU mean
+  geom_line() + #line graph
+  facet_wrap(~Name, scales = "free_y") + # separate plot for each site, axis range responsive to site
+  theme(axis.text.x = element_text(angle = 45)) #angle axis text for clarity
+```
+
+### Creating final data
+
+```{r conversions-nutrients, message=F, warning=F}
+      
+      #converting units 
+      nutrients_whit <- nutrients_mmp %>%
+  filter(Code %in% whit) %>%
+        mutate(NOx_uM = NO2_uM + NO3_uM,
+               NOx_ug.l = NOx_uM*14,
+               PN_ug.l = PN_uM*14,
+               PP_ug.l = PP_uM*30.97) %>%
+        select(Code:SECCHI_DEPTH_m, TSS_mg.L, 
+               Chl_ug.L, NOx_ug.l, PN_ug.l, PP_ug.l) %>%
+  rename(Secchi = SECCHI_DEPTH_m,
+         TSS = TSS_mg.L,
+         Chla = Chl_ug.L,
+         NOx = NOx_ug.l,
+         PN = PN_ug.l,
+         PP = PP_ug.l)
+
+#joining turbidity to nutrients
+
+turbidity_whit_long <- turbidity_whit %>% 
+  rename(Value = "NTU_QA_AVG") %>%
+  mutate(Indicator = "NTU")
+
+wq_whit <- nutrients_whit %>%
+  gather(Indicator, Value, Secchi:PP) %>%
+  rbind(turbidity_whit_long)
+```
+
+### Limits of Reporting
+
+There were no LOR changes for MMP in 2020, so I'll have to reference other years to see what this looks like
+
+### Outliers
+
+```{r outliers, message=F, warning=F}      
+outliers_whit <- wq_whit %>%
+  group_by(Indicator) %>%
+  mutate('5percentile' = quantile(Value, .05), #5th percentile for each indicator
+         '95percentile' = quantile(Value, .95), #95th percentile for each indicator
+         LowOutlier = ifelse(Value < quantile(Value,.05), "Low", "Pass"), #tagging values below 5th percentile
+         HighOutlier = ifelse(Value > quantile(Value, .95), "High", "Pass"), #tagging values above 95th percentile
+         Outlier = paste(LowOutlier, HighOutlier)) %>% #combine outlier columns
+        mutate_at("Outlier", str_replace, "Pass", "") %>% #remove redundant entries
+        mutate_if(is.character, str_trim) %>% #trim whitespace
+        select(-LowOutlier, -HighOutlier) %>% #remove unnecessary columns
+  filter(Outlier != "Pass")
+
+datatable(outliers_whit)
+```
+
+### Clean data
+
+```{r clean-data, message=F, warning=F}
+
+datatable(nutrients_whit)
+datatable(turbidity_whit)
+```
+### Guideline values 
+
+```{r stats-table}
+ # Create stats table 
+      #Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
+      
+      #nutrients data wide to long, measuring against guideline values
+      whit_stats <- wq_whit %>%
+  left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator")) %>%
+        group_by(Code, Indicator) %>%
+        mutate(Sample_Size = n(),
+               Mean = mean(Value),
+               Minimum = min(Value),
+               '25th' = quantile(Value, probs = .25),
+               Median = median(Value),
+               '75th' = quantile(Value, probs = .75),
+               Maximum = max(Value),
+               Stat_val = ifelse(Stat %in% "mean", mean(Value), 
+                                 ifelse(Stat %in% "median", median(Value),NA)),
+               Failure = ifelse(Dir_Fail == "low" & Stat_val < GV, "too low",
+                                ifelse(Dir_Fail == "high" & Stat_val > GV, "too high", "pass"))) %>%
+        select(-Value, -Date)
+
+
+datatable(whit_stats)
+```
+### Data values
+
+```{r data-values}
+#indicator avg data value
+whit_values <- whit_stats %>%
+        select(Code, Name, Indicator, Stat_val) %>%
+        distinct() %>%
+        pivot_wider(names_from = Indicator, 
+                    values_from = Stat_val)
+
+formattable(whit_values)
+```
+
+### Standardised scores
+
+```{r standardised-scores}
+# *** Secchi needs to be Stat_val/GV, all other indicators GV/Stat_val
+
+#creating standardised scores by converting numeric values to grades from 0-100
+whit_standardised <- whit_stats %>%
+        select(Code, Name, Indicator, Stat_val, GV) %>%
+        distinct() %>%
+        mutate(standardised = case_when(
+          Indicator %in% "Secchi" ~ifelse((log((Stat_val/GV),2))<=-1,-1,(ifelse((log((Stat_val/GV),2))>=1,1,(log((Stat_val/GV),2))))),
+                                        TRUE ~ ifelse((log((GV/Stat_val),2))<=-1,-1,(ifelse((log((GV/Stat_val),2))>=1,1,(log((GV/Stat_val),2))))))) %>%
+        select(-GV, -Stat_val) %>%
+        pivot_wider(names_from = Indicator, 
+                    values_from = standardised)
+
+formattable(whit_standardised)
+```
+### Category scores
+
+```{r category-scores}
+#Averaging values to condense categories
+whit_categories <- whit_standardised %>%
+  mutate(Nutrients = mean(c(NOx, PN, PP)),
+         Chla = Chla,
+         Clarity = mean(c(Secchi,TSS, NTU))) %>%
+  select(Name, Code, Nutrients, Chla, Clarity)
+
+formattable(whit_categories)
+```
+### Zone scores
+
+```{r zone-scores}
+whit_zone_score <- colMeans(whit_categories[c("Nutrients", "Chla", "Clarity")]) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, everything())
+
+formattable(whit_zone_score)
+```
+
+### Zone grade
+
+***** Very suspicious that Chl-a has gone from moderate in 2020 to very good in 2021...  need to check these numbers.
+```{r zone-grade}
+
+# I'm sure there's a better way to assign colours!
+
+whit_zone_grade <- whit_zone_score %>%
+  transmute(Zone = "Whitsunday",
+          Nutrients = round(40.9- (19.9 - ((Nutrients -(-0.66)) * (19.9/0.32)))),
+          Chla = round(60.9- (19.9 - ((Chla -(-0.33)) * (19.9/0.32)))),
+          Clarity = round(40.9- (19.9 - ((Clarity -(-0.66)) * (19.9/0.32))))) %>%
+  mutate('Water Quality' = round(mean(Nutrients:Clarity)))
+
+datatable(whit_zone_grade, rownames = FALSE) %>%
+  formatStyle(columns = "Chla", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Nutrients", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Clarity", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Water Quality", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050")))
+```
+# Indicator Level
+
+## TSS
+
+```{r outliers-TSS}
+outliers <- boxplot(nutrients_whit$TSS)$out 
+
+TSS_whit_outliers <- nutrients_whit %>%
+  select(Code, Name, Date, TSS) %>%
+  mutate(Outlier = ifelse(TSS %in% outliers, "TRUE", "FALSE"))
+
+formattable(TSS_whit_outliers)
+```
+```{r quantile-TSS}
+
+TSS_quantile <- nutrients_whit %>%
+  select(Code, Name, Date, TSS) %>%
+  mutate(Min = min(TSS), #minimum
+         Q1 = quantile(TSS, .25),
+         Median = median(TSS),
+         Q3 = quantile(TSS, .75),
+         Max = max(TSS),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -TSS) %>%
+        distinct() %>%
+        t()
+
+formattable(TSS_quantile) %>%
+  kable("html", caption = "TSS: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
+  kable_styling(full_width = F)
+
+
+```
+```{r boxplot-TSS}
+nutrients_whit %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, TSS) %>%
+  ggplot() +
+    geom_boxplot(aes(x=Zone, y = TSS))
+```
+
+## Chlorophyll-a
+
+```{r outliers-Chla}
+outliers <- boxplot(nutrients_whit$Chla)$out 
+
+Chla_whit_outliers <- nutrients_whit %>%
+  select(Code, Name, Date, Chla) %>%
+  mutate(Outlier = ifelse(Chla %in% outliers, "TRUE", "FALSE"))
+
+#*** Need to create somehting in cases where there's no outliers
+formattable(Chla_whit_outliers)
+```
+
+```{r quantile-Chla}
+
+Chla_quantile <- nutrients_whit %>%
+  select(Code, Name, Date, Chla) %>%
+  mutate(Min = min(Chla), #minimum
+         Q1 = quantile(Chla, .25),
+         Median = median(Chla),
+         Q3 = quantile(Chla, .75),
+         Max = max(Chla),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -Chla) %>%
+        distinct() %>%
+        t()
+
+formattable(Chla_quantile) %>%
+  kable("html", caption = "Chlorophyll-a: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
+  kable_styling(full_width = F)
+```
+```{r boxplot-Chla}
+nutrients_whit %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, Chla) %>%
+  ggplot() +
+    geom_boxplot(aes(x=Zone, y = Chla))
+```
+
+## NOx
+
+```{r outliers-NOx}
+outliers <- boxplot(nutrients_whit$NOx)$out 
+
+NOx_whit_outliers <- nutrients_whit %>%
+  select(Code, Name, Date, NOx) %>%
+  mutate(Outlier = ifelse(NOx %in% outliers, "TRUE", "FALSE"))
+
+#*** Need to create somehting in cases where there's no outliers
+formattable(NOx_whit_outliers)
+```
+
+```{r quantile-NOx}
+
+NOx_quantile <- nutrients_whit %>%
+  select(Code, Name, Date, NOx) %>%
+  mutate(Min = min(NOx), #minimum
+         Q1 = quantile(NOx, .25),
+         Median = median(NOx),
+         Q3 = quantile(NOx, .75),
+         Max = max(NOx),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -NOx) %>%
+        distinct() %>%
+        t()
+
+formattable(NOx_quantile) %>%
+  kable("html", caption = "NOx: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
+  kable_styling(full_width = F)
+```
+```{r boxplot-NOx}
+nutrients_whit %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, NOx) %>%
+  ggplot() +
+    geom_boxplot(aes(x=Zone, y = NOx))
+```
+
+## Secchi
+
+
+```{r outliers-Secchi}
+outliers <- boxplot(nutrients_whit$Secchi)$out 
+
+Secchi_whit_outliers <- nutrients_whit %>%
+  select(Code, Name, Date, Secchi) %>%
+  mutate(Outlier = ifelse(Secchi %in% outliers, "TRUE", "FALSE"))
+
+#*** Need to create somehting in cases where there's no outliers
+formattable(Secchi_whit_outliers)
+```
+
+```{r quantile-Secchi}
+
+Secchi_quantile <- nutrients_whit %>%
+  select(Code, Name, Date, Secchi) %>%
+  mutate(Min = min(Secchi), #minimum
+         Q1 = quantile(Secchi, .25),
+         Median = median(Secchi),
+         Q3 = quantile(Secchi, .75),
+         Max = max(Secchi),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -Secchi) %>%
+        distinct() %>%
+        t()
+
+formattable(Secchi_quantile) %>%
+  kable("html", caption = "Secchi: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
+  kable_styling(full_width = F)
+```
+```{r boxplot-Secchi}
+nutrients_whit %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, Secchi) %>%
+  ggplot() +
+    geom_boxplot(aes(x=Zone, y = Secchi))
+```
+
+
+## PN
+
+```{r outliers-PN}
+outliers <- boxplot(nutrients_whit$PN)$out 
+
+PN_whit_outliers <- nutrients_whit %>%
+  select(Code, Name, Date, PN) %>%
+  mutate(Outlier = ifelse(PN %in% outliers, "TRUE", "FALSE"))
+
+#*** Need to create somehting in cases where there's no outliers
+formattable(PN_whit_outliers)
+```
+
+```{r quantile-PN}
+
+PN_quantile <- nutrients_whit %>%
+  select(Code, Name, Date, PN) %>%
+  mutate(Min = min(PN), #minimum
+         Q1 = quantile(PN, .25),
+         Median = median(PN),
+         Q3 = quantile(PN, .75),
+         Max = max(PN),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -PN) %>%
+        distinct() %>%
+        t()
+
+formattable(PN_quantile) %>%
+  kable("html", caption = "PN: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
+  kable_styling(full_width = F)
+```
+```{r boxplot-PN}
+nutrients_whit %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, PN) %>%
+  ggplot() +
+    geom_boxplot(aes(x=Zone, y = PN))
+```
+## PP
+
+```{r outliers-PP}
+outliers <- boxplot(nutrients_whit$PP)$out 
+
+PP_whit_outliers <- nutrients_whit %>%
+  select(Code, Name, Date, PP) %>%
+  mutate(Outlier = ifelse(PP %in% outliers, "TRUE", "FALSE"))
+
+#*** Need to create somehting in cases where there's no outliers
+formattable(PP_whit_outliers)
+```
+
+```{r quantile-PP}
+
+PP_quantile <- nutrients_whit %>%
+  select(Code, Name, Date, PP) %>%
+  mutate(Min = min(PP), #minimum
+         Q1 = quantile(PP, .25),
+         Median = median(PP),
+         Q3 = quantile(PP, .75),
+         Max = max(PP),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -PP) %>%
+        distinct() %>%
+        t()
+
+formattable(PP_quantile) %>%
+  kable("html", caption = "PP: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
+  kable_styling(full_width = F)
+```
+```{r boxplot-PP}
+nutrients_whit %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, PP) %>%
+  ggplot() +
+    geom_boxplot(aes(x=Zone, y = PP))
+```
+
+## NTU
+
+```{r outliers-NTU}
+
+outliers <- boxplot(turbidity_whit$NTU_QA_AVG)$out 
+
+NTU_whit_outliers <- turbidity_whit %>%
+  rename(NTU = NTU_QA_AVG) %>%
+  mutate(Outlier = ifelse(NTU %in% outliers, "TRUE", "FALSE"))
+
+# Table of outliers
+datatable(NTU_whit_outliers)
+```
+
+```{r quantile-NTU}
+
+NTU_quantile <- turbidity_whit %>%
+  rename(NTU = NTU_QA_AVG) %>%
+  mutate(Min = min(NTU), #minimum
+         Q1 = quantile(NTU, .25),
+         Median = median(NTU),
+         Q3 = quantile(NTU, .75),
+         Max = max(NTU),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -NTU) %>%
+        distinct() %>%
+        t()
+
+formattable(NTU_quantile) %>%
+  kable("html", caption = "NTU: quantile by zone", escape = F, col.names = "Whitsundays")%>% 
+  kable_styling(full_width = F)
+```
+```{r boxplot-NTU}
+sample_size <- turbidity_whit %>% group_by(Code) %>% summarize(num=n())
+
+ #Boxplots by site
+     NTU_boxplot <-  turbidity_whit %>%
+       rename(NTU = NTU_QA_AVG) %>%
+        left_join(sample_size, by = "Code") %>%
+        mutate(Site = paste0(Name, "\n", "n=", num)) %>% #print sample size next to site name
+      ggplot( aes(x=Site, y=NTU)) + #calling NTU mean as y and site as x
+        # geom_boxplot(varwidth = TRUE) #create boxplot with width determined by sample size
+        geom_violin(width = 1.4, alpha=0.5) + #violin plot more accurately depicts distribution and sample size
+        geom_boxplot(width=0.1) + #depict boxplot inside of the violin plot
+        geom_jitter(color="grey", size=0.7, alpha=0.4) #add all points to visualise distribution and sample size
+
+     NTU_boxplot #prints plot
+```
