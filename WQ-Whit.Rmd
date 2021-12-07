@@ -1,0 +1,321 @@
+---
+title: "WQ-Whit"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load-libraries, message=F, warning=F}
+library(ggplot2) #graphing
+library(ggthemes) #graphing templates
+library(purrr) #looping
+library(lubridate) #date manipulation
+library(forcats) #working with factors
+library(tidyverse) #manipulating data 
+library(knitr) #rmarkdown functions
+library(tidyr) #long & wide formats
+library(reshape2) #melt function for wide and long formats
+library(rio) #import xlsx with multiple sheets
+library(kableExtra) #for displaying nice tables
+library(ggstatsplot) #for finding outliers
+library(DT) #excel-like searchable data tables
+library(ggpubr) #grid prints for ggplot
+library(formattable) #colour coding tables for grades
+library(openxlsx) #fixing excel date formats
+```
+
+# Setup and references
+```{r wq-index}
+options(scipen=999) # force non-scientific notation
+
+# load WQ index
+WQ_index <- import_list("data/WQ_Variables.xlsx", # GV, LOR, sites
+            setclass = "tbl") # class is tibble, similar to dataframe
+
+#site info
+sites <- as.data.frame(WQ_index$sites)
+
+# #lower limits of reporting for each partner - may be easier just to specify values in an equation when needed
+# LOR <- as.data.frame(WQ_index$'WQ-LOR')
+# # LOR wide to long
+#         # *** need to add column to describe whether the value is mean, median, etc
+# LOR_long <- gather(LOR, Indicator, Value, PN:Turbidity, factor_key=TRUE)
+
+# guideline values for failures
+GV <- as.data.frame(WQ_index$GV_long) %>%
+  mutate(Code = as.factor(Code),
+         Name = as.factor(Name),
+         Indicator = as.factor(Indicator),
+         GV = as.numeric(Value),
+         Stat = as.factor(Stat),
+         Dir_Fail = as.factor(Failure)) %>%
+  dplyr::select(-Failure, -Value)
+
+```
+MMP data
+```{r MMP-site-vectors, message=F, warning=F}
+#create vectors of site codes
+whit <- c("WHI1", "WHI4", "WHI5")
+central <- c("MKY_AMB1", "MKY_AMB2", "MKY_AMB3B", "MKY_AMB5", "MKY_AMB6B", "MKY_AMB8", "MKY_AMB10", "MKY_AMB12", "WHI6", "WHI7")
+mmp_sites <- c("WHI1", "WHI4", "WHI5", "WHI6", "WHI7")
+```
+
+# Zone Level
+
+## Raw data
+
+****** Note to check for duplicate entries
+
+```{r import-data-nutrients}
+# load and set up MMP data  
+      # load MMP nutrients
+      nutrients_mmp <- read.csv("data/20_WQ_MMP_nutrients.csv")
+
+#check any classes that need to be changed
+str(nutrients_mmp)
+            
+      #remove unnecessary columns and set proper classes
+      nutrients_mmp <- nutrients_mmp %>%
+        filter(DEPTH_CODE == "D0") %>%
+        mutate(Code = as.factor(SHORT_NAME),
+               Name = as.factor(LOCATION_NAME), 
+               Date = dmy(Date)) %>%
+        select(Code, 
+                # Depth,              
+               Date,
+               Name, SECCHI_DEPTH_m, 
+               NO2_uM, NO3_uM, PN_uM, PP_uM, 
+               TSS_mg.L, Chl_ug.L)
+```
+
+```{r import-data-turbidity, message=F, warning=F}
+# load and set up MMP data  
+      # load MMP turbidity
+      turbidity_mmp <- read.csv("data/21_WQ_MMP_turbidity.csv")
+
+#check column classes
+str(turbidity_mmp)
+
+ #remove unnecessary columns and set proper classes
+      turbidity_mmp <- turbidity_mmp %>%
+        mutate(Code = as.factor(Code),
+               Name = as.factor(Name), 
+               Date = dmy(Date)) %>%
+        select(Code,Name, Date, NTU_QA_AVG)
+      
+      turbidity_whit <- turbidity_mmp %>%
+        filter(Code %in% whit)
+      
+      #plot a time series for each site
+ggplot(turbidity_whit, aes(Date, NTU_QA_AVG)) + #x axis date, y axis NTU mean
+  geom_line() + #line graph
+  facet_wrap(~Name, scales = "free_y") + # separate plot for each site, axis range responsive to site
+  theme(axis.text.x = element_text(angle = 45)) #angle axis text for clarity
+```
+
+### Conversions and joining indicators
+```{r conversions-nutrients, message=F, warning=F}
+      
+      #conversions
+      nutrients_whit <- nutrients_mmp %>%
+  filter(Code %in% whit) %>%
+        mutate(NOx_uM = NO2_uM + NO3_uM,
+               NOx_ug.l = NOx_uM*14,
+               PN_ug.l = PN_uM*14,
+               PP_ug.l = PP_uM*30.97) %>%
+        select(Code:SECCHI_DEPTH_m, TSS_mg.L, 
+               Chl_ug.L, NOx_ug.l, PN_ug.l, PP_ug.l) %>%
+  rename(Secchi = SECCHI_DEPTH_m,
+         TSS = TSS_mg.L,
+         Chla = Chl_ug.L,
+         NOx = NOx_ug.l,
+         PN = PN_ug.l,
+         PP = PP_ug.l)
+
+turbidity_whit_long <- turbidity_whit %>%
+  rename(Value = "NTU_QA_AVG") %>%
+  mutate(Indicator = "NTU")
+
+wq_whit <- nutrients_whit %>%
+  gather(Indicator, Value, Secchi:PP) %>%
+  rbind(turbidity_whit_long)
+```
+
+### Limits of Reporting
+There were no LOR changes for MMP in 2020, so I'll have to reference other years to see what this looks like
+
+### Outliers
+```{r outliers, message=F, warning=F}      
+outliers_whit <- wq_whit %>%
+  group_by(Indicator) %>%
+  mutate('5percentile' = quantile(Value, .05), #5th percentile for each indicator
+         '95percentile' = quantile(Value, .95), #95th percentile for each indicator
+         LowOutlier = ifelse(Value < quantile(Value,.05), "Low", "Pass"), #tagging values below 5th percentile
+         HighOutlier = ifelse(Value > quantile(Value, .95), "High", "Pass"), #tagging values above 95th percentile
+         Outlier = paste(LowOutlier, HighOutlier)) %>% #combine outlier columns
+        mutate_at("Outlier", str_replace, "Pass", "") %>% #remove redundant entries
+        mutate_if(is.character, str_trim) %>% #trim whitespace
+        select(-LowOutlier, -HighOutlier) %>% #remove unnecessary columns
+  filter(Outlier != "Pass")
+
+formattable(outliers_whit)
+```
+
+### Final data
+
+```{r clean-data, message=F, warning=F}
+
+formattable(nutrients_whit)
+formattable(turbidity_whit)
+```
+### Data tables
+
+```{r stats-table}
+ # Create stats table 
+      #Stats (site (name + code), indicator, n-samples, mean, min, 25%, median, 75%, max, direction of failure, stat, GV)
+      
+      #nutrients data wide to long, measuring against guideline values
+      whit_stats <- wq_whit %>%
+  left_join(GV, by = c("Code" = "Code", "Name" = "Name", "Indicator" = "Indicator")) %>%
+        group_by(Code, Indicator) %>%
+        mutate(Sample_Size = n(),
+               Mean = mean(Value),
+               Minimum = min(Value),
+               '25th' = quantile(Value, probs = .25),
+               Median = median(Value),
+               '75th' = quantile(Value, probs = .75),
+               Maximum = max(Value),
+               Stat_val = ifelse(Stat %in% "mean", mean(Value), 
+                                 ifelse(Stat %in% "median", median(Value),NA)),
+               Failure = ifelse(Dir_Fail == "low" & Stat_val < GV, "too low",
+                                ifelse(Dir_Fail == "high" & Stat_val > GV, "too high", "pass"))) %>%
+        select(-Value, -Date)
+
+
+formattable(whit_stats)
+```
+```{r data-values}
+#indicator avg data value
+whit_values <- whit_stats %>%
+        select(Code, Name, Indicator, Stat_val) %>%
+        distinct() %>%
+        pivot_wider(names_from = Indicator, 
+                    values_from = Stat_val)
+
+formattable(whit_values)
+```
+
+```{r standardised scores}
+# *** Secchi needs to be Stat_val/GV, all other indicators GV/Stat_val
+# *** This equation was copied from the excel file, I'm not sure how to interpret...
+
+#creating standardised scores by converting numeric values to grades from 0-100
+whit_standardised <- whit_stats %>%
+        select(Code, Name, Indicator, Stat_val, GV) %>%
+        distinct() %>%
+        mutate(standardised = case_when(
+          Indicator %in% "Secchi" ~ifelse((log((Stat_val/GV),2))<=-1,-1,(ifelse((log((Stat_val/GV),2))>=1,1,(log((Stat_val/GV),2))))),
+                                        TRUE ~ ifelse((log((GV/Stat_val),2))<=-1,-1,(ifelse((log((GV/Stat_val),2))>=1,1,(log((GV/Stat_val),2))))))) %>%
+        select(-GV, -Stat_val) %>%
+        pivot_wider(names_from = Indicator, 
+                    values_from = standardised)
+
+formattable(whit_standardised)
+```
+```{r category-scores}
+#Averaging values to condense categories
+whit_categories <- whit_standardised %>%
+  mutate(Nutrients = mean(c(NOx, PN, PP)),
+         Chla = Chla,
+         Clarity = mean(c(Secchi,TSS, NTU))) %>%
+  select(Name, Code, Nutrients, Chla, Clarity)
+
+formattable(whit_categories)
+```
+```{r zone-scores}
+whit_zone_score <- colMeans(whit_categories[c("Nutrients", "Chla", "Clarity")]) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, everything())
+
+formattable(whit_zone_score)
+```
+
+```{r zone-grade}
+
+# I'm sure there's a better way to assign colours!
+
+whit_zone_grade <- whit_zone_score %>%
+  transmute(Zone = "Whitsunday",
+          Nutrients = round(40.9- (19.9 - ((Nutrients -(-0.66)) * (19.9/0.32)))),
+          Chla = round(60.9- (19.9 - ((Chla -(-0.33)) * (19.9/0.32)))),
+          Clarity = round(40.9- (19.9 - ((Clarity -(-0.66)) * (19.9/0.32))))) %>%
+  mutate('Water Quality' = round(mean(Nutrients:Clarity)))
+
+datatable(whit_zone_grade, rownames = FALSE) %>%
+  formatStyle(columns = "Chla", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Nutrients", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Clarity", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
+  formatStyle(columns = "Water Quality", 
+              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050")))
+```
+# Indicator Level
+
+## TSS
+
+```{r outliers-TSS}
+
+TSS_whit_outliers <- nutrients_whit %>%
+  select(Code, Name, Date, TSS) %>%
+  mutate(Min = min(TSS), #minimum
+         Q1 = quantile(TSS, .25),
+         Median = median(TSS),
+         Q3 = quantile(TSS, .75),
+         Max = max(TSS),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR,
+         LowOutlier = ifelse(TSS < Low, "Low", "Pass"), 
+         HighOutlier = ifelse(TSS > High, "High", "Pass"),
+         Outlier = paste(LowOutlier, HighOutlier)) %>% #combine outlier columns
+        mutate_at("Outlier", str_replace, "Pass", "") %>% #remove redundant entries
+        mutate_if(is.character, str_trim) %>% #trim whitespace
+        select(-LowOutlier, -HighOutlier) %>%
+  filter(Outlier != "Pass")
+
+formattable(TSS_whit_outliers)
+```
+```{r quantile-TSS}
+
+TSS_quantile <- nutrients_whit %>%
+  select(Code, Name, Date, TSS) %>%
+  mutate(Min = min(TSS), #minimum
+         Q1 = quantile(TSS, .25),
+         Median = median(TSS),
+         Q3 = quantile(TSS, .75),
+         Max = max(TSS),
+         IQR = Q3 - Q1,
+         LowWhisker = Q1 - 1.5*IQR,
+         HighWhisker = Q3 + 1.5*IQR) %>%
+        select(-Code, -Name, -Date, -TSS) %>%
+        distinct() %>%
+        t()
+
+  colnames(TSS_quantile) <- "Whitsunday"
+
+formattable(TSS_quantile)
+
+nutrients_whit %>%
+  mutate(Zone = "Whitsunday") %>%
+  select(Zone, TSS) %>%
+  ggplot() +
+    geom_boxplot(aes(x=Zone, y = TSS))
+```
+
