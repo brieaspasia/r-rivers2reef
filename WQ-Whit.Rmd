@@ -35,7 +35,7 @@ library(ggpubr) #grid prints for ggplot
 library(formattable) #colour coding tables for grades
 library(openxlsx) #fixing excel date formats
 
-# Look into flextable, reactable, or gt as other option for formatting and colour-coding. Use datatable for anything that needs to be searchable, formattable for lovely design.
+# Datatable good for anything that needs to be searchable, formattable for lovely design. Look into flextable, reactable, or gt as other option for formatting and colour-coding. 
 # https://rstudio.github.io/DT/
 #https://www.littlemissdata.com/blog/prettytables
 #https://rfortherestofus.com/2019/11/how-to-make-beautiful-tables-in-r/
