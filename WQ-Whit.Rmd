@@ -245,7 +245,11 @@ whit_standardised <- whit_stats %>%
         pivot_wider(names_from = Indicator, 
                     values_from = standardised)
 
-formattable(whit_standardised)
+indicators <- c("Secchi", "TSS", "Chla", "NOx", "PN", "PP", "NTU")
+
+datatable(whit_standardised, rownames = FALSE) %>%
+  formatStyle(columns = indicators, 
+              background = styleInterval(c(-.66, -.33, 0, .51)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050")))
 ```
 ### Category scores
 
@@ -257,7 +261,11 @@ whit_categories <- whit_standardised %>%
          Clarity = mean(c(Secchi,TSS, NTU))) %>%
   select(Name, Code, Nutrients, Chla, Clarity)
 
-formattable(whit_categories)
+indicators <- c("Chla", "Nutrients", "Clarity")
+
+datatable(whit_categories, rownames = FALSE) %>%
+  formatStyle(columns = indicators, 
+              background = styleInterval(c(-.66, -.33, 0, .51)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050")))
 ```
 ### Zone scores
 
@@ -268,16 +276,17 @@ whit_zone_score <- colMeans(whit_categories[c("Nutrients", "Chla", "Clarity")]) 
   mutate(Zone = "Whitsunday") %>%
   select(Zone, everything())
 
-formattable(whit_zone_score)
+indicators <- c("Chla", "Nutrients", "Clarity")
+
+datatable(whit_zone_score, rownames = FALSE) %>%
+  formatStyle(columns = indicators, 
+              background = styleInterval(c(-.66, -.33, 0, .51)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050")))
 ```
 
 ### Zone grade
 
 ***** Very suspicious that Chl-a has gone from moderate in 2020 to very good in 2021...  need to check these numbers.
 ```{r zone-grade}
-
-# I'm sure there's a better way to assign colours! Maybe simplify with lapply?
-
 whit_zone_grade <- whit_zone_score %>%
   transmute(Zone = "Whitsunday",
           Nutrients = round(40.9- (19.9 - ((Nutrients -(-0.66)) * (19.9/0.32)))),
@@ -285,14 +294,10 @@ whit_zone_grade <- whit_zone_score %>%
           Clarity = round(40.9- (19.9 - ((Clarity -(-0.66)) * (19.9/0.32))))) %>%
   mutate('Water Quality' = round(mean(Nutrients:Clarity)))
 
+indicators <- c("Chla", "Nutrients", "Clarity", "Water Quality")
+
 datatable(whit_zone_grade, rownames = FALSE) %>%
-  formatStyle(columns = "Chla", 
-              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
-  formatStyle(columns = "Nutrients", 
-              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
-  formatStyle(columns = "Clarity", 
-              background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050"))) %>%
-  formatStyle(columns = "Water Quality", 
+  formatStyle(columns = indicators, 
               background = styleInterval(c(21, 41, 61, 81)-1e-6, c("#FF0000", "#FFC000", "#FFFF00", "#92D050", "#00B050")))
 ```
 # Indicator Level
